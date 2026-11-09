@@ -1,0 +1,18 @@
+import axios from 'axios'
+
+export class ApiError extends Error { constructor(message:string,readonly status?:number,readonly code?:string){super(message);this.name='ApiError'} }
+const backendMessages:Record<string,string>={
+  INVALID_CREDENTIALS:'Email or password is incorrect.',EMAIL_ALREADY_REGISTERED:'An account already exists for this email.',AUTHENTICATION_REQUIRED:'Sign in to continue.',INVALID_TOKEN:'Your access token is invalid.',TOKEN_EXPIRED:'Your session expired. Sign in again.',
+  UNSUPPORTED_FILE_TYPE:'This file type is not supported. Choose .md, .txt, .docx, .pdf, .xlsx, .xls, or .csv.',MIME_TYPE_MISMATCH:'The file content type does not match its extension.',FILE_TOO_LARGE:'The file exceeds the backend per-file upload limit.',EMPTY_FILE:'The selected file is empty.',FILES_REQUIRED:'Select at least one file.',FILE_REQUIRED:'Select a file to upload.',BATCH_LIMIT_EXCEEDED:'The upload batch exceeds the backend count or combined size limit.',
+  QUERY_REQUIRED:'Enter a search query.',INVALID_SEARCH_LIMIT:'Search limit must be between one and eight.',DOCUMENT_NOT_FOUND:'The document was not found in this workspace.',JOB_NOT_FOUND:'The job was not found in this workspace.',INVALID_MESSAGE:'Enter a message of up to 6000 characters.',INVALID_CONVERSATION_ID:'The conversation ID is invalid.',INVALID_CONVERSATION_TITLE:'Conversation titles must contain 1–120 characters.',CONVERSATION_NOT_FOUND:'This conversation is unavailable in your account.',USER_NOT_FOUND:'No registered user was found for that email.',MEMBERSHIP_EXISTS:'This user is already a member of the workspace.',TENANT_MEMBER_NOT_FOUND:'The workspace member could not be found.',SUPER_ADMIN_ASSIGNMENT_REQUIRES_PLATFORM_ADMIN:'Only a platform administrator can assign the super administrator role.',TENANT_ACCESS_DENIED:'You do not have access to this workspace.',P2022:'The backend database is missing migration 202611070002_document_versions. Ask the backend operator to apply the migration.',
+}
+export function normalizeApiError(error:unknown):ApiError{
+ if(error instanceof ApiError)return error
+ if(!axios.isAxiosError(error))return new ApiError('Something went wrong. Please try again.')
+ if(!error.response)return new ApiError(error.code==='ECONNABORTED'?'The request timed out. Please try again.':'Could not reach the API. Check your connection and try again.',undefined,error.code)
+ const status=error.response.status;const payload=error.response.data as {error?:unknown;message?:unknown;code?:unknown}|undefined;const rawCode=typeof payload?.code==='string'?payload.code:typeof payload?.message==='string'?payload.message:typeof payload?.error==='string'?payload.error:undefined;const code=rawCode&&/^[A-Z0-9_]+$/.test(rawCode)?rawCode:undefined
+ const messages:Record<number,string>={400:'The request was not accepted. Check the input and try again.',401:'Your session has expired. Sign in again.',403:'You are not authorized to access this workspace or resource.',404:'The requested resource could not be found.',413:'The file exceeds the backend upload limit.',429:'The service is busy. Wait a moment and try again.',500:'The service encountered an error. Please try again later.'}
+ const backendMessage=typeof payload?.message==='string'?payload.message:typeof payload?.error==='string'?payload.error:undefined
+ const usefulBackendMessage=backendMessage&&backendMessage.length<=500&&!/^(internal server error|request failed)$/i.test(backendMessage)?backendMessage:undefined
+ return new ApiError((code&&backendMessages[code])||usefulBackendMessage||messages[status]||(status>=500?'The service encountered an error. Please try again later.':`The request failed (${status}).`),status,code)
+}
