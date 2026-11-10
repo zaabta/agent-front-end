@@ -1,10 +1,10 @@
 import { z } from 'zod'
 
 export const tenantRoleSchema=z.enum(['SUPER_ADMIN','TENANT_ADMIN','MEMBER','READ_ONLY'])
-export const healthResponseSchema=z.object({ok:z.boolean(),service:z.string(),prototype:z.boolean(),database:z.string(),retrieval:z.string()})
+export const healthResponseSchema=z.object({ok:z.boolean(),service:z.string(),prototype:z.boolean().optional(),database:z.string(),retrieval:z.string()})
 export const assignableTenantRoleSchema=z.enum(['TENANT_ADMIN','MEMBER','READ_ONLY'])
-export const tenantMemberSchema=z.object({role:tenantRoleSchema,createdAt:z.string(),user:z.object({id:z.string(),email:z.string(),emailDisplay:z.string().nullable().optional(),displayName:z.string().nullable(),disabledAt:z.string().nullable()})})
-export const addTenantMemberResponseSchema=z.object({user:z.object({id:z.string(),email:z.string(),emailDisplay:z.string().nullable().optional(),displayName:z.string().nullable()}),tenantId:z.string(),role:assignableTenantRoleSchema})
+export const tenantMemberSchema=z.object({role:tenantRoleSchema,createdAt:z.string(),user:z.object({id:z.string(),email:z.string().optional(),emailDisplay:z.string().nullable().optional(),displayName:z.string().nullable(),disabledAt:z.string().nullable()})})
+export const addTenantMemberResponseSchema=z.object({user:z.object({id:z.string(),email:z.string().optional(),emailDisplay:z.string().nullable().optional(),displayName:z.string().nullable()}),tenantId:z.string(),role:assignableTenantRoleSchema})
 export const changeTenantMemberRoleResponseSchema=z.object({userId:z.string(),tenantId:z.string(),role:assignableTenantRoleSchema})
 export const authResponseSchema=z.object({accessToken:z.string(),tokenType:z.literal('Bearer'),expiresIn:z.number().positive(),user:z.object({id:z.string()}),tenant:z.object({id:z.string(),role:tenantRoleSchema})})
 export const documentSummarySchema=z.object({id:z.string(),filename:z.string(),fileType:z.string(),status:z.string(),stage:z.string(),progress:z.number().nullable(),jobId:z.string().nullable(),retryCount:z.number(),failureCode:z.string().nullable(),fileSize:z.number().nullable(),createdAt:z.string(),updatedAt:z.string(),completedAt:z.string().nullable()})
@@ -25,10 +25,11 @@ export const agentMessageStatusSchema=z.enum(['processing','completed','interrup
 export const agentMessageSchema=z.object({id:z.string(),role:z.enum(['user','assistant']),content:z.string(),status:agentMessageStatusSchema.default('completed'),stage:z.string().nullable().optional(),citations:z.array(z.object({source:z.string(),documentId:z.string().optional(),documentVersionId:z.string().optional(),sourceRef:z.string().optional(),chunkIndex:z.number().optional(),location:z.string().nullable().optional(),sheet:z.string().nullable().optional(),rowStart:z.number().nullable().optional(),rowEnd:z.number().nullable().optional(),sourceRange:z.string().nullable().optional(),section:z.string().nullable().optional(),lineStart:z.number().nullable().optional(),lineEnd:z.number().nullable().optional(),paragraphStart:z.number().nullable().optional(),paragraphEnd:z.number().nullable().optional()})).default([]),provider:z.string().nullable().optional(),model:z.string().nullable().optional(),createdAt:z.string()})
 export const conversationLastMessageSchema=z.object({id:z.string().optional(),role:z.enum(['user','assistant']).optional(),content:z.string().nullable().optional(),status:agentMessageStatusSchema,stage:z.string().nullable().optional()}).passthrough()
 export const conversationSchema=z.object({id:z.string(),title:z.string().nullable().optional(),createdAt:z.string().optional(),updatedAt:z.string().optional(),lastMessage:conversationLastMessageSchema.nullable().optional(),messages:z.array(agentMessageSchema).optional(),messagesNextCursor:z.string().nullable().optional()})
-export const conversationPageSchema=z.object({conversations:z.array(conversationSchema),nextCursor:z.string().nullable().optional()})
+export const conversationPageSchema=z.object({conversations:z.array(conversationSchema),nextCursor:z.string().nullable().optional(),meta:z.object({nextCursor:z.string().nullable().optional()}).passthrough().optional()}).passthrough()
 export const streamEventSchema=z.discriminatedUnion('type',[z.object({type:z.literal('delta'),text:z.string()}),z.object({type:z.literal('complete'),message:agentMessageSchema}),z.object({type:z.literal('error'),code:z.string(),message:z.string()})])
 export const documentSchema=z.object({id:z.string(),jobId:z.string().nullable(),fileName:z.string(),sizeBytes:z.number().nullable(),uploadedAt:z.string(),uploadedBy:z.string(),status:z.string(),active:z.boolean(),downloadAvailable:z.boolean()})
 export const documentListSchema=z.object({documents:z.array(documentSchema),nextCursor:z.string().nullable()})
+export const documentCatalogResponseSchema=z.object({documents:z.array(documentSummarySchema),meta:z.object({page:z.number(),limit:z.number(),count:z.number(),total:z.number(),totalPages:z.number(),hasNextPage:z.boolean(),hasPreviousPage:z.boolean()}).passthrough()})
 export const historyEntrySchema=z.object({id:z.string(),query:z.string(),resultCount:z.number(),createdAt:z.string()})
 export const historyPageSchema=z.object({history:z.array(historyEntrySchema),nextCursor:z.string().nullable()})
 export type JobProgressDto=z.infer<typeof jobStatusSchema.shape.progress>

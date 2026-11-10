@@ -1,7 +1,46 @@
 import type { ReactNode } from 'react'
+import { FileCode, FileSpreadsheet, FileText, FileType, Table2 } from 'lucide-react'
 
 export function readableAgentText(text: string) {
-  return text
+  return text.replace(/Sources?:\s*((?:\[\[[^\]]+\]\]\s*,?\s*)+)/gi, (_match, block: string) => `Sources: ${[...block.matchAll(/\[\[([^\]]+)\]\]/g)].map(source => source[1]!.trim()).join(', ')}`)
+}
+
+export function hasAgentSourceReferences(text: string) {
+  return text.split(/\r?\n/).some(isAgentSourceLine)
+}
+
+function extractSourceReferences(line: string) {
+  const bracketed = [...line.matchAll(/\[\[([^\]]+)\]\]/g)].map(match => match[1]!.trim())
+  if (bracketed.length) return bracketed
+  const plainSources = /(?:^|,\s*)([^,]+?\.(?:pdf|docx|xlsx|xls|csv|md|txt|png|jpe?g)(?:\s+\((?:page|pages|line|lines|paragraph|paragraphs)\s+[^)]+\))?)(?=,\s*|$)/gi
+  return [...line.replace(/^Sources?:\s*/i, '').matchAll(plainSources)].map(match => match[1]!.trim())
+}
+
+function isAgentSourceLine(line: string) {
+  if (!/^Sources?:\s*/i.test(line)) return false
+  const sources = extractSourceReferences(line)
+  return sources.length > 0 && !sources.reduce((remainder, source) => remainder.replace(source, ''), line.replace(/^Sources?:\s*/i, '')).replace(/[\s,;\[\]]/g, '')
+}
+
+function sourceFileIcon(filename: string) {
+  const extension = filename.split('.').pop()?.toLowerCase()
+  if (extension === 'pdf' || extension === 'txt') return FileText
+  if (extension === 'docx') return FileType
+  if (extension === 'xlsx' || extension === 'xls') return FileSpreadsheet
+  if (extension === 'csv') return Table2
+  if (extension === 'md') return FileCode
+  return FileText
+}
+
+function AgentSourceFiles({ sources }: { sources: string[] }) {
+  return <section className="agent-answer-sources" aria-label="Answer sources"><div className="agent-answer-sources-label">Sources</div><div className="agent-answer-source-list">{sources.map((source, index) => {
+    const match = /^(.*?)(?:\s+\((page|pages|line|lines|paragraph|paragraphs)\s+([^)]*)\))$/i.exec(source.trim())
+    const filename = (match?.[1] ?? source).trim()
+    const location = match ? `${match[2]!.replace(/s$/i, '')} ${match[3]}` : ''
+    const extension = filename.split('.').pop()?.toUpperCase() ?? 'FILE'
+    const Icon = sourceFileIcon(filename)
+    return <div className="agent-answer-source-card" key={`${source}-${index}`}><span className={`agent-answer-source-icon type-${extension.toLowerCase()}`}><Icon size={18}/><i>{extension}</i></span><span className="agent-answer-source-copy"><b title={filename}>{filename}</b><small>{location||`${extension} document`}</small></span></div>
+  })}</div></section>
 }
 
 function renderLines(text: string): ReactNode[] {
@@ -43,11 +82,18 @@ function renderLines(text: string): ReactNode[] {
       flushList()
       continue
     }
-    const heading = /^(#{1,3})\s+(.+)$/.exec(line)
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line)
     if (heading) {
       flushParagraph()
       flushList()
       nodes.push(<h4 key={`h-${nodes.length}`}>{renderInline(heading[2]!)}</h4>)
+      continue
+    }
+    const sourceReferences = extractSourceReferences(line)
+    if (isAgentSourceLine(line)) {
+      flushParagraph()
+      flushList()
+      nodes.push(<AgentSourceFiles sources={sourceReferences} key={`sources-${nodes.length}`}/>)
       continue
     }
     if (/^\|.*\|$/.test(line)) {
