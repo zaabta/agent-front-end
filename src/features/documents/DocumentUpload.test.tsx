@@ -5,7 +5,7 @@ import { ApiError, api, type CreatedJob } from '../../lib/api/client'
 import { DocumentUpload } from './DocumentUpload'
 
 vi.mock('../../lib/sse/job-events', () => ({ subscribeJobEvents: () => () => undefined }))
-vi.mock('../../lib/auth/AuthProvider', () => ({ useAuth: () => ({ session: { accessToken: 'synthetic-test-token', identity: { tenantId: 'tenant-test', userId: 'user-test', role: 'MEMBER' } } }) }))
+vi.mock('../../lib/auth/AuthProvider', () => ({ useAuth: () => ({ session: { accessToken: 'synthetic-test-token', identity: { tenantId: 'tenant-test', userId: 'user-test' } } }) }))
 
 const jobIds = [
   '3c9ff88b-5188-4059-b14d-8f2f2714ea77',
@@ -35,6 +35,11 @@ function renderUpload() {
 afterEach(() => { cleanup(); sessionStorage.clear(); vi.restoreAllMocks() })
 
 describe('document upload workspace', () => {
+  it('does not infer read-only access when the authenticated session has no role field', () => {
+    renderUpload()
+    expect(screen.queryByText('Your workspace role is read-only. Ask a workspace administrator for document upload access.')).not.toBeInTheDocument()
+  })
+
   it('accepts all backend-supported formats through independent file requests', async () => {
     const names = ['notes.md', 'report.docx', 'notes.txt', 'workbook.xlsx', 'data.pdf', 'legacy.xls', 'table.csv']
     const fileJobIds = new Map(names.map((name, index) => [name, jobIds[index]!]))
@@ -93,7 +98,7 @@ describe('document upload workspace', () => {
     expect(container.querySelector('.progress-track')).not.toBeInTheDocument()
   })
 
-  it('uses stagePercent with unit counters and stays indeterminate when counters are absent', async () => {
+  it('shows one overall bar and keeps measured stage progress in its details', async () => {
     vi.spyOn(api, 'upload').mockResolvedValue(acceptedJob(jobIds[0]!, 'notes.md'))
     vi.spyOn(api, 'job').mockResolvedValue({
       ...completedJob(jobIds[0]!), status: 'processing', progress: { processed: 0, total: null, percent: null },
@@ -102,8 +107,10 @@ describe('document upload workspace', () => {
     const { container } = renderUpload()
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(['synthetic'], 'notes.md', { type: 'text/markdown' })] } })
     fireEvent.click(await screen.findByRole('button', { name: 'Upload 1 file' }))
-    const progress = await screen.findByRole('progressbar', { name: 'Ingestion progress for notes.md' })
-    await waitFor(() => expect(progress).toHaveAttribute('aria-valuenow', '42'))
+    const progress = await screen.findByRole('progressbar', { name: 'Overall ingestion progress for notes.md' })
+    await waitFor(() => expect(progress).not.toHaveAttribute('aria-valuenow'))
+    expect(container.querySelectorAll('[role="progressbar"]')).toHaveLength(1)
+    expect(container.textContent).toContain('Current stage · embedding · 42%')
     expect(container.textContent).toContain('2 / 5 chunks')
   })
 
@@ -119,11 +126,10 @@ describe('document upload workspace', () => {
     const { container } = renderUpload()
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(['synthetic'], 'finished.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })] } })
     fireEvent.click(await screen.findByRole('button', { name: 'Upload 1 file' }))
-    const progress = await screen.findByRole('progressbar', { name: 'Ingestion progress for finished.docx' })
-    await waitFor(() => expect(progress).toHaveAttribute('aria-valuenow', '100'))
-    expect(container.textContent).toContain('Ready')
-    expect(container.textContent).toContain('Ingestion · Ready · 100%')
-    expect(progress).not.toHaveClass('indeterminate')
+    const progress = await screen.findByRole('progressbar', { name: 'Overall ingestion progress for finished.docx' })
+    await waitFor(() => expect(progress).not.toHaveAttribute('aria-valuenow'))
+    expect(container.textContent).toContain('Current stage · completed')
+    expect(progress).toHaveClass('indeterminate')
   })
 
   it('rejects legacy DOC and oversized files with clear validation errors', async () => {

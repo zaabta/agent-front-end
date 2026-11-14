@@ -7,7 +7,7 @@ interface AuthContextValue { session:MemorySession|null; restoringSession:boolea
 const AuthContext=createContext<AuthContextValue|null>(null)
 const devAuthEnabled=import.meta.env.DEV
 let restoreInFlight:Promise<boolean>|null=null
-function acceptAuth(data:AuthResponse){if(!data?.accessToken||data.tokenType!=='Bearer'||!data.user?.id||!data.tenant?.id)throw new Error('Authentication response did not match the SitePilot contract.');session.setAuth(data)}
+function acceptAuth(data:AuthResponse){if(!data?.accessToken||data.tokenType!=='Bearer'||!data.user?.id)throw new Error('Authentication response did not match the SitePilot contract.');session.setAuth(data)}
 export function AuthProvider({children}:{children:ReactNode}){const qc=useQueryClient();const[current,setCurrent]=useState(session.getState());const[restoringSession,setRestoringSession]=useState(!session.getState());const[identityError,setIdentityError]=useState('');const[signingIn,setSigningIn]=useState(false)
  useEffect(()=>session.subscribe(value=>{setCurrent(value);if(!value)qc.clear()}),[qc])
  useEffect(()=>{if(!session.getState()){const task=refreshSession();restoreInFlight=task;void task.finally(()=>{if(restoreInFlight===task)restoreInFlight=null;setRestoringSession(false)})}else setRestoringSession(false)},[])

@@ -83,7 +83,7 @@ function fileType(name: string) {
 
 export function DocumentUpload() {
   const auth = useAuth()
-  const canWriteDocuments = ['SUPER_ADMIN','TENANT_ADMIN','MEMBER'].includes(auth.session?.identity.role ?? '')
+  const canWriteDocuments = !!auth.session
   const [rows, setRows] = useState<UploadRow[]>(() => auth.session ? restoreJobs(auth.session.identity.tenantId,auth.session.identity.userId) : [])
   const [uploading, setUploading] = useState(false)
   const queryClient = useQueryClient()
@@ -221,7 +221,6 @@ export function DocumentUpload() {
         </div>
         {rejectionRows.map((item, index) => <div className="form-error" key={`${item.fileName}-${index}`}><AlertCircle size={14}/><span><b>{item.fileName}</b>: {item.message}</span></div>)}
         {!auth.session && <div className="form-error"><AlertCircle size={14}/><span>Sign in with an authorized workspace identity before uploading files or checking processing status.</span></div>}
-        {auth.session&&!canWriteDocuments&&<div className="form-error"><AlertCircle size={14}/><span>Your workspace role is read-only. Ask a workspace administrator for document upload access.</span></div>}
         {visibleUploadRows.length > 0 && <div className="batch-upload-list" aria-live="polite">{visibleUploadRows.map(row => {
           const Icon = fileIcon(row.fileName)
           const jobIndex = row.jobId ? trackedRows.findIndex(item => item.jobId === row.jobId) : -1
@@ -232,19 +231,18 @@ export function DocumentUpload() {
           const overallPercent=details?.overallPercent??job?.progress.percent??null
           const stagePercent=details?.stagePercent??null
           const overallDeterminate=overallPercent!=null
-          const stageDeterminate=stagePercent!=null
           const overallProgress=overallDeterminate?Math.max(0,Math.min(99,overallPercent)):null
-          const currentStageProgress=stageDeterminate?Math.max(0,Math.min(99,stagePercent)):null
+          const currentStageProgress=stagePercent!=null?Math.max(0,Math.min(99,stagePercent)):null
           const unit=details?.unit?` ${details.unit}`:''
           const unitProgress=details?.completedUnits!=null?`${details.completedUnits}${details.totalUnits!=null?` / ${details.totalUnits}`:''}${unit} completed`:''
           const remainingProgress=details?.remainingUnits!=null?`${details.remainingUnits}${unit} remaining`:''
           const rate=details?.unitsPerSecond!=null?`${details.unitsPerSecond.toFixed(1)}${unit}/s`:''
-          const eta=details?.etaMs!=null?`~${formatDuration(details.etaMs)} left`:''
+          const eta=details?.etaMs!=null?`~${formatDuration(details.etaMs)} left in this stage`:''
           const status = row.stage === 'indexed' ? 'Ready' : row.stage === 'failed' ? `Failed${row.backendStatus?` · ${row.backendStatus}`:''}` : row.stage === 'cancelled' ? `Cancelled${row.backendStatus?` · ${row.backendStatus}`:''}` : row.stage === 'uploading' ? 'Uploading' : row.stage === 'processing' ? `Processing · ${stage}` : 'Ready to upload'
           return <article className={`batch-upload-item ${row.stage === 'failed' ? 'failed' : ''}`} key={row.id}>
-            <Icon size={18}/><div className="batch-upload-info"><b title={row.fileName}>{row.fileName}</b><small>{formatBytes(row.size)} · {fileType(row.fileName)} · {status}</small>
+            <span className="upload-file-type"><Icon size={18}/><small>{fileType(row.fileName)}</small></span><div className="batch-upload-info"><b title={row.fileName}>{row.fileName}</b><small>{formatBytes(row.size)} · {status}</small>
               {row.stage === 'uploading' && <><div className="progress-track"><span style={{ width: `${row.transferPercent ?? 0}%` }}/></div><small>Upload transfer · {row.transferPercent == null ? 'measuring…' : `${row.transferPercent}%`}</small></>}
-              {row.stage === 'processing' && <><div className={`progress-track ${overallDeterminate?'':'indeterminate'}`} role="progressbar" aria-label={`Overall ingestion progress for ${row.fileName}`} aria-valuemin={0} aria-valuemax={100} {...(overallDeterminate?{'aria-valuenow':overallProgress!}:{})}><span style={overallDeterminate?{width:`${overallProgress}%`}:undefined}/></div><small>Estimated overall progress{overallDeterminate?` · ${overallProgress}%`:''}</small><div className={`progress-track stage-progress-track ${stageDeterminate?'':'indeterminate'}`} role="progressbar" aria-label={`Ingestion progress for ${row.fileName}`} aria-valuemin={0} aria-valuemax={100} {...(stageDeterminate?{'aria-valuenow':currentStageProgress!}:{})}><span style={stageDeterminate?{width:`${currentStageProgress}%`}:undefined}/></div><small>Current stage · {stage}{stageDeterminate?` · ${currentStageProgress}%`:''}{unitProgress?` · ${unitProgress}`:''}{remainingProgress?` · ${remainingProgress}`:''}{rate?` · ${rate}`:''}{eta?` · ${eta}`:''}</small></>}
+              {row.stage === 'processing' && <><div className={`progress-track ${overallDeterminate?'':'indeterminate'}`} role="progressbar" aria-label={`Overall ingestion progress for ${row.fileName}`} aria-valuemin={0} aria-valuemax={100} {...(overallDeterminate?{'aria-valuenow':overallProgress!}:{})}><span style={overallDeterminate?{width:`${overallProgress}%`}:undefined}/></div><small>Overall file progress · estimated{overallDeterminate?` · ${overallProgress}%`:''}</small><small>Current stage · {stage}{currentStageProgress!=null?` · ${currentStageProgress}%`:''}{unitProgress?` · ${unitProgress}`:''}{remainingProgress?` · ${remainingProgress}`:''}{rate?` · ${rate}`:''}{eta?` · ${eta}`:''}</small></>}
               {row.stage === 'indexed' && <><div className="progress-track" role="progressbar" aria-label={`Ingestion progress for ${row.fileName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={100}><span style={{width:'100%'}}/></div><small>Ingestion · Ready · 100%</small></>}
               {row.stage === 'processing' && jobQuery?.isError && <small className="job-error">Could not refresh job status. {displayError(jobQuery.error)} <button type="button" className="text-link" onClick={() => void jobQuery.refetch()}>Retry status check</button></small>}
               {row.error && <small className="job-error">{row.error}</small>}
