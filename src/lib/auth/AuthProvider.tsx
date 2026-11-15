@@ -36,12 +36,12 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 const devAuthEnabled = import.meta.env.DEV;
 let restoreInFlight: Promise<boolean> | null = null;
-function acceptAuth(data: AuthResponse) {
+function acceptAuth(data: AuthResponse, email?: string) {
   if (!data?.accessToken || data.tokenType !== "Bearer" || !data.user?.id)
     throw new Error(
       "Authentication response did not match the SitePilot contract.",
     );
-  session.setAuth(data);
+  session.setAuth(data, email);
 }
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { email, password },
         { withCredentials: true },
       );
-      acceptAuth(data);
+      acceptAuth(data, email);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Sign in failed.";
       setIdentityError(msg);
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           { email, password, ...(displayName ? { displayName } : {}) },
           { withCredentials: true },
         );
-        acceptAuth(data);
+        acceptAuth(data, email);
       } finally {
         setSigningIn(false);
       }

@@ -9,11 +9,13 @@ export interface AuthResponse {
 export interface SessionIdentity {
   id: string;
   label: string;
+  email?: string;
   tenantId: string;
   userId: string;
   groupId: string;
   role?: TenantRole;
 }
+const ACCOUNT_EMAIL_SESSION_KEY = "sitepilot:accountEmail";
 export interface MemorySession {
   accessToken: string;
   expiresAt: number;
@@ -33,13 +35,28 @@ export const session = {
     }
     return current?.accessToken ?? null;
   },
-  setAuth: (auth: AuthResponse) => {
+  setAuth: (auth: AuthResponse, email?: string) => {
+    const normalizedEmail = email?.trim();
+    if (email !== undefined) {
+      if (normalizedEmail?.includes("@"))
+        sessionStorage.setItem(ACCOUNT_EMAIL_SESSION_KEY, normalizedEmail);
+      else sessionStorage.removeItem(ACCOUNT_EMAIL_SESSION_KEY);
+    }
+    const accountEmail =
+      (email === undefined ? undefined : normalizedEmail) ||
+      sessionStorage.getItem(ACCOUNT_EMAIL_SESSION_KEY) ||
+      undefined;
     current = {
       accessToken: auth.accessToken,
       expiresAt: Date.now() + auth.expiresIn * 1000,
       identity: {
         id: auth.user.id,
-        label: auth.user.displayName || auth.user.username || auth.user.id,
+        label:
+          auth.user.displayName ||
+          accountEmail ||
+          auth.user.username ||
+          auth.user.id,
+        ...(accountEmail ? { email: accountEmail } : {}),
         tenantId: "",
         userId: auth.user.id,
         groupId: "",
@@ -78,6 +95,7 @@ export const session = {
   },
   clear: () => {
     current = null;
+    sessionStorage.removeItem(ACCOUNT_EMAIL_SESSION_KEY);
     publish();
   },
 };

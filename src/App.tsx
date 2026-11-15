@@ -92,6 +92,7 @@ import { AgentAnswer, readableAgentText } from "./features/agent/AgentAnswer";
 import { UserManagement } from "./features/users/UserManagement";
 import { LlmManagement } from "./features/settings/LlmManagement";
 import { CustomTools } from "./features/tools/CustomTools";
+import { AccountMenu } from "./components/AccountMenu";
 
 type Page =
   | "Overview"
@@ -460,49 +461,14 @@ function Shell() {
   });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [dark, setDark] = useState(
     () => document.documentElement.dataset.theme === "dark",
   );
-  const accountMenuRef = useRef<HTMLDetailsElement | null>(null);
-  const accountProfile = useQuery({
-    queryKey: ["auth-me", auth.session?.identity.userId],
-    queryFn: ({ signal }) => api.currentAccount(signal),
-    enabled: accountOpen && !!auth.session,
-    retry: 0,
-    staleTime: 300_000,
-  });
-  const accountUser = accountProfile.data?.user;
-  const accountName =
-    accountUser?.displayName ||
-    accountUser?.username ||
-    accountUser?.emailDisplay ||
-    accountUser?.email ||
-    auth.session?.identity.label;
   function toggleTheme() {
     const next = !dark;
     document.documentElement.dataset.theme = next ? "dark" : "light";
     setDark(next);
   }
-  useEffect(() => {
-    const closeMenu = (event: MouseEvent) => {
-      if (
-        event.target instanceof Node &&
-        !accountMenuRef.current?.contains(event.target)
-      )
-        accountMenuRef.current?.removeAttribute("open");
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape")
-        accountMenuRef.current?.removeAttribute("open");
-    };
-    document.addEventListener("mousedown", closeMenu);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeMenu);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, []);
   if (auth.restoringSession)
     return (
       <div className="signin-loading">
@@ -663,57 +629,7 @@ function Shell() {
             <button className="icon-button" aria-label="Help">
               <CircleHelp size={18} />
             </button>
-            <details
-              ref={accountMenuRef}
-              className="account-menu"
-              onToggle={(event) => setAccountOpen(event.currentTarget.open)}
-            >
-              <summary
-                className="avatar avatar-small"
-                aria-label="Open account menu"
-              >
-                {(accountName || "U").slice(0, 2).toUpperCase()}
-              </summary>
-              <div className="account-popover">
-                <div className="account-popover-title">
-                  <span>Signed in</span>
-                  <b>{accountName || "Signed in account"}</b>
-                </div>
-                <div className="account-person">
-                  <span className="account-person-avatar">
-                    {(accountName || "U").slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="account-person-copy">
-                    <b>{accountName || "Signed in account"}</b>
-                    <small>
-                      {accountUser?.emailDisplay ||
-                        accountUser?.email ||
-                        (accountProfile.isPending
-                          ? "Loading email…"
-                          : accountProfile.isError
-                            ? "Could not load email"
-                            : "Email unavailable")}
-                    </small>
-                    {accountProfile.isError && (
-                      <button
-                        className="account-profile-retry"
-                        type="button"
-                        onClick={() => void accountProfile.refetch()}
-                      >
-                        Retry
-                      </button>
-                    )}
-                  </span>
-                </div>
-                <button
-                  className="account-signout"
-                  type="button"
-                  onClick={() => void auth.signOut()}
-                >
-                  Sign out
-                </button>
-              </div>
-            </details>
+            <AccountMenu />
           </div>
         </header>
         <div className="page-content">
