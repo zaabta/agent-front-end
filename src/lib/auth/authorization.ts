@@ -1,3 +1,5 @@
-import type { TenantRole } from './session'
+import type { TenantRole } from "./session";
 
-export function canViewWorkerMonitoring(role:TenantRole|undefined|null){return role==='SUPER_ADMIN'||role==='TENANT_ADMIN'}
+export function canViewWorkerMonitoring(role: TenantRole | undefined | null) {
+  return role === "SUPER_ADMIN" || role === "TENANT_ADMIN";
+}

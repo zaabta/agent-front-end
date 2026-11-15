@@ -1,2 +1,93 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
-:root{font-family:'DM Sans',sans-serif;color:var(--foreground);background:var(--background);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-optical-sizing:auto;--primary:#ee923d;--primary-hover:#dc7b25;--background:#fafafa;--surface:#fff;--foreground:#201b17;--muted:#827b73;--muted-foreground:#989188;--border:#eeeae5;--border-strong:#e5dfd7;--sidebar:#fff;--sidebar-foreground:#716b64;--success:#32805a;--success-bg:#eff8f2;--warning:#ac722a;--warning-bg:#fff7e9;--destructive:#bc4b42;--destructive-bg:#fff1ef;--radius:12px;--radius-sm:8px;--shadow:0 4px 18px rgba(53,42,28,.045);--shadow-sm:0 1px 3px rgba(53,42,28,.05);--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;--space-12:48px}*{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh}button,input,textarea{font:inherit}button{color:inherit}a{color:inherit;text-decoration:none}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid color-mix(in srgb,var(--primary) 40%,transparent);outline-offset:2px}::selection{background:#ffe4ca}html[data-theme=dark]{--primary:#f2a45f;--primary-hover:#ffb875;--background:#12171d;--surface:#1b222a;--foreground:#edf2f7;--muted:#a8b2bd;--muted-foreground:#8995a1;--border:#2c3641;--border-strong:#3d4a57;--sidebar:#171e25;--sidebar-foreground:#c0cad4;--success:#72cb94;--success-bg:#1c3426;--warning:#e6b664;--warning-bg:#3b2e1b;--destructive:#ff897e;--destructive-bg:#3d2524;--shadow:0 8px 26px rgba(0,0,0,.24);--shadow-sm:0 2px 5px rgba(0,0,0,.18);color-scheme:dark}
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+:root {
+  font-family: "DM Sans", sans-serif;
+  color: var(--foreground);
+  background: var(--background);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  --primary: #ee923d;
+  --primary-hover: #dc7b25;
+  --background: #fafafa;
+  --surface: #fff;
+  --foreground: #201b17;
+  --muted: #827b73;
+  --muted-foreground: #989188;
+  --border: #eeeae5;
+  --border-strong: #e5dfd7;
+  --sidebar: #fff;
+  --sidebar-foreground: #716b64;
+  --success: #32805a;
+  --success-bg: #eff8f2;
+  --warning: #ac722a;
+  --warning-bg: #fff7e9;
+  --destructive: #bc4b42;
+  --destructive-bg: #fff1ef;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 4px 18px rgba(53, 42, 28, 0.045);
+  --shadow-sm: 0 1px 3px rgba(53, 42, 28, 0.05);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+button {
+  color: inherit;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  outline-offset: 2px;
+}
+::selection {
+  background: #ffe4ca;
+}
+html[data-theme="dark"] {
+  --primary: #f2a45f;
+  --primary-hover: #ffb875;
+  --background: #12171d;
+  --surface: #1b222a;
+  --foreground: #edf2f7;
+  --muted: #a8b2bd;
+  --muted-foreground: #8995a1;
+  --border: #2c3641;
+  --border-strong: #3d4a57;
+  --sidebar: #171e25;
+  --sidebar-foreground: #c0cad4;
+  --success: #72cb94;
+  --success-bg: #1c3426;
+  --warning: #e6b664;
+  --warning-bg: #3b2e1b;
+  --destructive: #ff897e;
+  --destructive-bg: #3d2524;
+  --shadow: 0 8px 26px rgba(0, 0, 0, 0.24);
+  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.18);
+  color-scheme: dark;
+}
