@@ -246,25 +246,38 @@ describe("LLM settings", () => {
     expect(screen.getAllByText("20").length).toBeGreaterThan(0);
   });
 
-  it("keeps configuration mutations disabled for non-super-admins", async () => {
+  it("does not gate model controls by the tenant role when the API allows access", async () => {
     authState.value = baseAuth("TENANT_ADMIN");
+    const openai = {
+      ...model,
+      id: "model-openai",
+      provider: "openai",
+      modelId: "gpt-test",
+      displayName: "GPT test",
+      local: false,
+    };
     apiMocks.llmProviders.mockResolvedValue([
       { id: "ollama", configured: true },
       { id: "openai", configured: true },
     ]);
+    apiMocks.llmModels.mockResolvedValue([model, openai]);
     renderFeature();
     const selector = await screen.findByRole("combobox", {
       name: "Choose a model",
     });
-    expect(selector).toBeDisabled();
+    expect(selector).toBeEnabled();
     expect(
-      screen.queryByRole("button", { name: "Sync models" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("API key for OpenAI GPT")).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Use this model" }),
-    ).toBeDisabled();
-    expect(apiMocks.setActiveLlmModel).not.toHaveBeenCalled();
+      screen.getByRole("button", { name: "Sync models" }),
+    ).toBeEnabled();
+    expect(screen.getByLabelText("API key for OpenAI GPT")).toBeEnabled();
+    fireEvent.change(selector, { target: { value: "model-openai" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use this model" }));
+    await waitFor(() =>
+      expect(apiMocks.setActiveLlmModel).toHaveBeenCalledWith(
+        "openai",
+        "gpt-test",
+      ),
+    );
   });
 
   it("explains that provider management needs INSTALLATION_OWNER_USER_ID after a 503", async () => {

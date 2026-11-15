@@ -194,7 +194,6 @@ export function LlmManagement() {
     setManagementIssue(denied ? ownerPermissionMessage(denied.error) : "");
   };
   const canManage =
-    auth.session?.identity.role === "SUPER_ADMIN" &&
     providers.isSuccess &&
     models.isSuccess &&
     active.isSuccess &&
@@ -648,12 +647,6 @@ export function LlmManagement() {
           </div>
         ) : (
           <>
-            {auth.session.identity.role !== "SUPER_ADMIN" && (
-              <p className="llm-permission">
-                <ShieldCheck size={16} /> Read only · SUPER_ADMIN access is
-                required to change providers and models.
-              </p>
-            )}
             <div className="llm-config-heading">
               <div>
                 <h3>Current configuration</h3>
@@ -704,12 +697,12 @@ export function LlmManagement() {
             <section className="llm-model-picker">
               <div className="llm-picker-heading">
                 <div>
-                  <h4>Choose a model</h4>
-                  <p>Select any compatible model from a connected provider.</p>
+                  <h4>Change generation model</h4>
+                  <p>Choose a ready model for new Agent requests.</p>
                 </div>
-                <span>{selectableModels.length} available</span>
+                <span>{selectableModels.length} ready</span>
               </div>
-              <label htmlFor="active-model">Provider and model</label>
+              <label htmlFor="active-model">Available provider models</label>
               <select
                 id="active-model"
                 aria-label="Choose a model"
@@ -745,10 +738,18 @@ export function LlmManagement() {
                   ) : null;
                 })}
               </select>
+              {!selectableModels.length && (
+                <p className="llm-picker-unavailable" role="status">
+                  No models are ready to select. Sync the model list and check
+                  that a model is available, enabled, compatible, and connected
+                  to a configured provider. Ollama models must support tools.
+                </p>
+              )}
               {selectedModel && (
                 <div className="llm-selected-model">
                   <ProviderIcon provider={selectedModel.provider} size={16} />
                   <span>
+                    <small>SELECTED FOR NEW REQUESTS</small>
                     <b>{selectedModel.displayName || selectedModel.modelId}</b>
                     <small>
                       {providerLabels[selectedModel.provider] ??
