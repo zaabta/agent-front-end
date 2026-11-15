@@ -138,6 +138,7 @@ export const customToolExecutionSchema = z.object({
   toolId: z.string(),
   toolVersion: z.number(),
   logicalRequestId: z.string(),
+  arguments: z.record(z.string(), z.unknown()).nullable().optional(),
   conversationId: z.string().nullable(),
   userId: z.string(),
   latencyMs: z.number().nullable(),

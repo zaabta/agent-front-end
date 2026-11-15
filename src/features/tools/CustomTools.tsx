@@ -1224,8 +1224,8 @@ export function CustomTools() {
                         <div>
                           <h3>Execution history</h3>
                           <p>
-                            Metadata only. Request and response bodies are never
-                            shown.
+                            Sanitized tool arguments are shown. HTTP response
+                            bodies are never stored.
                           </p>
                         </div>
                         <button
@@ -1256,6 +1256,7 @@ export function CustomTools() {
                                   <th>Duration</th>
                                   <th>Type</th>
                                   <th>Error category</th>
+                                  <th>Arguments</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1282,6 +1283,16 @@ export function CustomTools() {
                                       {row.isTest ? "Config test" : "Agent"}
                                     </td>
                                     <td>{row.errorCategory ?? "—"}</td>
+                                    <td>
+                                      {row.arguments ? (
+                                        <details className="custom-history-arguments">
+                                          <summary>View</summary>
+                                          <pre>{JSON.stringify(row.arguments, null, 2)}</pre>
+                                        </details>
+                                      ) : (
+                                        "—"
+                                      )}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>

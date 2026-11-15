@@ -968,6 +968,18 @@
 .custom-history-table-wrap td {
   color: var(--foreground);
 }
+.custom-history-arguments summary {
+  cursor: pointer;
+  color: var(--primary);
+}
+.custom-history-arguments pre {
+  max-width: 420px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
 .custom-history-status.failed {
   background: color-mix(
     in srgb,
