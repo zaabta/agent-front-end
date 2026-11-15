@@ -61,30 +61,34 @@ const currentAccountSchema = z.object({
   username: z.string().optional(),
   displayName: z.string().nullable().optional(),
 });
-export const authMeResponseSchema = z.union([
-  z
-    .object({
-      user: currentAccountSchema,
-      role: tenantRoleSchema.nullable().optional(),
-    })
-    .transform(({ user, role }) => ({ user, role })),
-  z
-    .object({
-      account: currentAccountSchema,
-      role: tenantRoleSchema.nullable().optional(),
-    })
-    .transform(({ account, role }) => ({ user: account, role })),
-]);
+export const authMeResponseSchema = z
+  .object({ ...currentAccountSchema.shape, role: tenantRoleSchema.nullable() })
+  .transform(({ role, ...user }) => ({ user, role }));
+export const customToolParameterSchema = z.object({
+  name: z.string(),
+  type: z.enum(["string", "number", "integer", "boolean"]),
+  required: z.boolean(),
+  description: z.string().optional(),
+  queryParameter: z.string(),
+});
+const customToolParameterPayloadSchema = z.object({
+  name: z.string(),
+  type: z.enum(["string", "number", "integer", "boolean"]),
+  required: z.boolean().optional(),
+  description: z.string().optional(),
+  queryParameter: z.string().optional(),
+});
 export const customToolSchema = z.object({
   id: z.string(),
   name: z.string(),
   displayName: z.string(),
   description: z.string(),
   type: z.literal("HTTP_GET"),
-  connectionProfile: z.string(),
-  path: z.string(),
+  endpoint: z.string().nullable(),
+  parameters: z.array(customToolParameterSchema),
+  connectionProfile: z.string().optional(),
+  path: z.string().optional(),
   queryMappings: z.record(z.string(), z.string()),
-  allowedResultSources: z.array(z.string()),
   inputSchema: z.record(z.string(), z.unknown()),
   outputSchema: z.record(z.string(), z.unknown()),
   authSecretRef: z.string().nullable().optional(),
@@ -101,23 +105,22 @@ export const customToolSchema = z.object({
 });
 export const customToolPayloadSchema = z.object({
   name: z.string(),
-  displayName: z.string(),
+  displayName: z.string().optional(),
   description: z.string(),
-  connectionProfile: z.string(),
-  path: z.string(),
-  queryMappings: z.record(z.string(), z.string()),
-  allowedResultSources: z.array(z.string()),
-  inputSchema: z.record(z.string(), z.unknown()),
-  outputSchema: z.record(z.string(), z.unknown()),
+  endpoint: z.string(),
+  parameters: z.array(customToolParameterPayloadSchema).optional(),
+  queryMappings: z.record(z.string(), z.string()).optional(),
+  inputSchema: z.record(z.string(), z.unknown()).optional(),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
   auth: z
     .object({
       headerName: z.enum(["Authorization", "X-API-Key"]),
-      prefix: z.string(),
+      prefix: z.string().optional(),
       secret: z.string().optional(),
     })
     .optional(),
-  timeoutMs: z.number(),
-  maxResponseBytes: z.number(),
+  timeoutMs: z.number().optional(),
+  maxResponseBytes: z.number().optional(),
 });
 export const customToolConnectionSchema = z.object({
   id: z.string(),

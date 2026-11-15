@@ -49,11 +49,36 @@ const backendMessages: Record<string, string> = {
   INVALID_TOOL_NAME:
     "Use a unique lowercase tool name such as crm_contact_search.",
   INVALID_SCHEMA:
-    "Check the JSON Schema format. Object schemas must set additionalProperties to false.",
+    "Check the restricted JSON Schema. Input objects must be closed; the default output schema accepts any bounded JSON object.",
+  INVALID_ENDPOINT:
+    "Enter a valid full HTTPS endpoint without credentials, query, fragment, or unsafe path segments.",
+  INVALID_ENDPOINT_CONFIGURATION:
+    "Use a full HTTPS endpoint without legacy connection profile or path fields.",
+  INVALID_TOOL_DESCRIPTION:
+    "Enter an AI-facing description between 3 and 500 characters.",
+  INVALID_DISPLAY_NAME: "Enter a valid display name of at most 100 characters.",
+  INVALID_PARAMETERS:
+    "The backend accepts up to 20 supported input parameters.",
+  INVALID_PARAMETER:
+    "Check parameter names, types, descriptions, and required flags.",
+  INVALID_PARAMETER_CONFIGURATION:
+    "Use either visual parameters or raw input schema and query mappings, not both.",
+  INVALID_QUERY_PARAMETER:
+    "Use a valid, unique API query parameter name.",
+  INVALID_AUTH_CONFIGURATION:
+    "Check the authentication header, prefix, and credential value.",
+  DNS_FAILURE: "The endpoint hostname could not be resolved by the backend.",
+  ADDRESS_NOT_ALLOWED:
+    "The endpoint resolves to a non-public address and was blocked.",
+  HTTP_STATUS: "The endpoint returned a non-success HTTP status.",
+  CONTENT_TYPE_INVALID: "The endpoint must return JSON.",
+  REDIRECT_REJECTED: "The endpoint redirected the request; redirects are blocked.",
+  RESPONSE_TOO_LARGE: "The endpoint response exceeded the configured size limit.",
+  OUTPUT_SCHEMA_MISMATCH: "The endpoint response did not match the output schema.",
   INVALID_PATH:
-    "Use a fixed relative path under the approved connection profile.",
+    "The legacy relative path is invalid. New integrations should use a full HTTPS endpoint.",
   INVALID_QUERY_MAPPINGS:
-    "Map approved query parameter names to top-level input properties.",
+    "Map up to 20 valid API query parameter names to top-level input properties.",
   CONNECTION_PROFILE_UNAVAILABLE:
     "Choose an approved connection profile returned by the backend.",
   INVALID_TIMEOUT: "Choose a timeout within the backend-supported range.",

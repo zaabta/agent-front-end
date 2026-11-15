@@ -263,6 +263,11 @@
 .custom-tool-meta > span:first-of-type {
   color: var(--foreground);
 }
+.custom-tool-endpoint {
+  max-width: min(420px, 100%);
+  overflow-wrap: anywhere;
+  color: var(--muted) !important;
+}
 .custom-tool-auth-state {
   display: inline-flex;
   align-items: center;
@@ -386,7 +391,7 @@
 .custom-tool-drawer {
   display: flex;
   flex-direction: column;
-  width: min(620px, 100%);
+  width: min(760px, 100%);
   height: 100%;
   overflow: hidden;
   border-left: 1px solid var(--border);
@@ -448,6 +453,11 @@
   font:
     700 12px Manrope,
     sans-serif;
+}
+.custom-tool-optional {
+  margin-left: 5px;
+  color: var(--muted);
+  font: 500 9px "DM Sans", sans-serif;
 }
 .custom-tool-form label,
 .custom-tool-test > label {
@@ -619,6 +629,165 @@
 }
 .custom-tool-form-error svg {
   flex: none;
+}
+.custom-tool-creation-steps {
+  display: flex;
+  justify-content: space-between;
+  gap: 7px;
+  margin: 0;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--border);
+  list-style: none;
+}
+.custom-tool-creation-steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.custom-tool-creation-steps li > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+}
+.custom-tool-creation-steps li.active {
+  color: var(--primary);
+  font-weight: 700;
+}
+.custom-tool-creation-steps li.active > span,
+.custom-tool-creation-steps li.done > span {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground, #fff);
+}
+.custom-tool-parameter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.custom-tool-parameter-heading > div {
+  display: grid;
+  gap: 4px;
+}
+.custom-tool-parameter-heading h3,
+.custom-tool-review h3 {
+  margin: 0;
+  font:
+    700 12px Manrope,
+    sans-serif;
+}
+.custom-tool-parameter-heading small {
+  color: var(--muted);
+  font-size: 9px;
+}
+.custom-tool-parameter-heading .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 31px;
+  padding-inline: 9px;
+  font-size: 9px;
+}
+.custom-tool-parameters-empty {
+  padding: 14px;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.custom-tool-parameter-row {
+  display: grid;
+  grid-template-columns:
+    minmax(100px, 1fr) minmax(95px, 0.75fr) minmax(130px, 1.35fr)
+    auto auto;
+  align-items: end;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--background) 65%, var(--surface));
+}
+.custom-tool-parameter-row .custom-tool-checkbox {
+  min-height: 38px;
+  white-space: nowrap;
+}
+.custom-tool-remove-parameter {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--destructive, #b43b36);
+  cursor: pointer;
+}
+.custom-tool-remove-parameter:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.custom-tool-advanced {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--background) 45%, var(--surface));
+}
+.custom-tool-advanced > summary {
+  padding: 12px 14px;
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.custom-tool-advanced-content {
+  display: grid;
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+.custom-tool-advanced-content .custom-tool-form-section:last-child {
+  border-bottom: 0;
+}
+.custom-tool-review {
+  display: grid;
+  align-content: start;
+  gap: 15px;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 22px 26px;
+}
+.custom-tool-review > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.custom-tool-review dl {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.65fr) 1.35fr;
+  gap: 10px 14px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--background);
+  font-size: 10px;
+}
+.custom-tool-review dt {
+  color: var(--muted);
+}
+.custom-tool-review dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-weight: 650;
 }
 .custom-tool-config-test-note {
   display: flex;
@@ -899,7 +1068,8 @@
   }
   .custom-tool-form,
   .custom-tool-detail,
-  .custom-tool-test {
+  .custom-tool-test,
+  .custom-tool-review {
     padding: 14px 16px 22px;
   }
   .custom-tool-form-footer {
@@ -915,6 +1085,24 @@
   .custom-tool-auth-fields,
   .custom-tool-number-grid {
     grid-template-columns: 1fr;
+  }
+  .custom-tool-parameter-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .custom-tool-parameter-row > label:first-child,
+  .custom-tool-parameter-row > label:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .custom-tool-creation-steps {
+    gap: 3px;
+  }
+  .custom-tool-creation-steps li {
+    gap: 3px;
+    font-size: 8px;
+  }
+  .custom-tool-creation-steps li > span {
+    width: 18px;
+    height: 18px;
   }
   .custom-tool-secret-field {
     grid-column: auto;
