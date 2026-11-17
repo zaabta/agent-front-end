@@ -71,6 +71,11 @@ export interface AgentService {
   searchDocuments(query: string, signal?: AbortSignal): Promise<SearchHit[]>;
 }
 const baseURL = appConfig.apiBaseUrl;
+const providerFailureCodes = new Set([
+  "QUOTA_EXCEEDED", "RATE_LIMITED", "TIMEOUT", "CONNECTION_FAILED",
+  "MODEL_UNAVAILABLE", "PROVIDER_UNAVAILABLE", "PROVIDER_AUTH_FAILED",
+  "PROVIDER_CREDITS_EXHAUSTED", "INVALID_MODEL_OUTPUT", "TOOL_EXECUTION_FAILED",
+]);
 export const http = axios.create({
   baseURL,
   timeout: 30_000,
@@ -734,16 +739,22 @@ export const api = {
             ? eventPayload.verification
             : undefined,
         );
-      if (event === "error" && eventPayload.recoverable !== true) {
+      if (
+        event === "error" &&
+        (eventPayload.recoverable !== true ||
+          (typeof eventPayload.code === "string" && providerFailureCodes.has(eventPayload.code)))
+      ) {
         const code =
           typeof eventPayload.code === "string"
             ? eventPayload.code
             : "AGENT_REQUEST_FAILED";
-        const message =
+        throw new ApiError(
           typeof eventPayload.message === "string"
-            ? ` · ${eventPayload.message}`
-            : "";
-        throw new ApiError(`Agent request failed (${code})${message}`);
+            ? eventPayload.message
+            : `Agent request failed (${code})`,
+          undefined,
+          code,
+        );
       }
       if (event === "done") final = eventPayload;
     };

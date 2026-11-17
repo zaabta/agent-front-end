@@ -1434,7 +1434,6 @@ function Agent() {
       showPersistentStatus("Generation cancelled");
     } else if (
       event === "error" &&
-      payload.recoverable !== true &&
       payload.discardProvisional === true
     ) {
       streamVerificationRef.current = "";
