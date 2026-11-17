@@ -14,7 +14,7 @@ const { apiMocks, authState } = vi.hoisted(() => ({
   apiMocks: {
     llmProviders: vi.fn(),
     llmModels: vi.fn(),
-    activeLlmModel: vi.fn(),
+    llmRoleConfigurations: vi.fn(),
     llmUsageSummary: vi.fn(),
     llmUsageDaily: vi.fn(),
     llmUsageByModel: vi.fn(),
@@ -23,7 +23,7 @@ const { apiMocks, authState } = vi.hoisted(() => ({
     addLlmModel: vi.fn(),
     updateLlmModel: vi.fn(),
     testLlmModel: vi.fn(),
-    setActiveLlmModel: vi.fn(),
+    setLlmRoleConfiguration: vi.fn(),
     saveLlmCredential: vi.fn(),
     revokeLlmCredential: vi.fn(),
     testLlmProvider: vi.fn(),
@@ -68,7 +68,10 @@ const model = {
   local: true,
   validationStatus: "available",
 };
-let activeSelection = { provider: "ollama", modelId: "qwen3:8b" };
+let roleSelection = {
+  planner: { provider: "ollama", modelId: "qwen3:8b", source: "shared" },
+  answer: { provider: "ollama", modelId: "qwen3:8b", source: "shared" },
+};
 const baseAuth = (role: string) => ({
   session: { identity: { role, tenantId: "tenant-1", userId: "user-1" } },
 });
@@ -82,6 +85,10 @@ function renderFeature() {
     </QueryClientProvider>,
   );
 }
+function chooseMenuOption(label: string, option: RegExp) {
+  fireEvent.click(screen.getByRole("combobox", { name: label }));
+  fireEvent.click(screen.getByRole("option", { name: option }));
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -92,8 +99,11 @@ beforeEach(() => {
     { id: "openrouter", configured: true },
   ]);
   apiMocks.llmModels.mockResolvedValue([model]);
-  activeSelection = { provider: "ollama", modelId: "qwen3:8b" };
-  apiMocks.activeLlmModel.mockImplementation(async () => activeSelection);
+  roleSelection = {
+    planner: { provider: "ollama", modelId: "qwen3:8b", source: "shared" },
+    answer: { provider: "ollama", modelId: "qwen3:8b", source: "shared" },
+  };
+  apiMocks.llmRoleConfigurations.mockImplementation(async () => roleSelection);
   apiMocks.llmUsageSummary.mockResolvedValue(usage);
   apiMocks.llmUsageDaily.mockResolvedValue({
     ...usage,
@@ -123,10 +133,13 @@ beforeEach(() => {
     available: true,
     validationStatus: "available",
   });
-  apiMocks.setActiveLlmModel.mockImplementation(
-    async (provider: string, modelId: string) => {
-      activeSelection = { provider, modelId };
-      return activeSelection;
+  apiMocks.setLlmRoleConfiguration.mockImplementation(
+    async (role: "planner" | "answer", provider: string, modelId: string) => {
+      roleSelection = {
+        ...roleSelection,
+        [role]: { provider, modelId, source: "role" },
+      };
+      return roleSelection;
     },
   );
   apiMocks.saveLlmCredential.mockResolvedValue({
@@ -151,18 +164,13 @@ afterEach(() => cleanup());
 
 describe("LLM settings", () => {
   it("shows backend models and usage values while keeping provider secrets out of the UI", async () => {
+    apiMocks.llmProviders.mockResolvedValue([
+      { id: "ollama", configured: true, baseUrl: "http://127.0.0.1:11434" },
+      { id: "google", configured: true },
+      { id: "openrouter", configured: true },
+    ]);
     renderFeature();
     expect((await screen.findAllByText("qwen3:8b")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Add a key to connect").length).toBeGreaterThan(
-      0,
-    );
-    expect(screen.getAllByText("OpenAI GPT").length).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("img", { name: "OpenAI GPT logo" }).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("img", { name: "Google Gemini logo" }).length,
-    ).toBeGreaterThan(0);
     expect(screen.getAllByText("20").length).toBeGreaterThan(0);
     expect(screen.getByText("Input tokens")).toBeInTheDocument();
     expect(apiMocks.llmUsageDaily).toHaveBeenCalledWith(
@@ -171,26 +179,107 @@ describe("LLM settings", () => {
       "date",
       expect.anything(),
     );
-    expect(
-      screen
-        .getAllByRole("button", { name: "Save key" })
-        .every((button) => button.hasAttribute("disabled")),
-    ).toBe(true);
     expect(screen.getByText("2026-11-14")).toBeInTheDocument();
-    expect(screen.getAllByText("Ollama · qwen3:8b").length).toBeGreaterThan(0);
+    expect(screen.getByText("Planning / Routing / Thinking")).toBeInTheDocument();
+    expect(screen.getByText("Answer Generation")).toBeInTheDocument();
+    expect(screen.getAllByText("Local")).toHaveLength(2);
+    expect(
+      document.querySelectorAll('.llm-role-current [aria-label="Qwen logo"]'),
+    ).toHaveLength(2);
+    expect(screen.queryByText("Local AI")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cloud AI")).not.toBeInTheDocument();
+    expect(screen.queryByText("Provider connections")).not.toBeInTheDocument();
+    expect(screen.queryByText("Model registry")).not.toBeInTheDocument();
+    expect(screen.queryByText("Manage provider credentials and connection status.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Test models or change which ones are enabled")).not.toBeInTheDocument();
+    expect(screen.queryByText("22 models")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Planning / Routing / Thinking provider",
+      }),
+    );
+    const providerOptions = within(
+      screen.getByRole("listbox", {
+        name: "Planning / Routing / Thinking provider",
+      }),
+    );
+    expect(
+      providerOptions.getByRole("option", { name: /Google Gemini/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(providerOptions.getByRole("option", { name: /Ollama/ })).getByText("Current"),
+    ).toBeInTheDocument();
+    expect(
+      within(providerOptions.getByRole("option", { name: /Ollama/ })).getByText("Local"),
+    ).toBeInTheDocument();
+    expect(
+      within(providerOptions.getByRole("option", { name: /Google Gemini/ })).getByRole("img", {
+        name: "Google Gemini logo",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(providerOptions.getByRole("option", { name: /OpenRouter/ })).getByRole("img", {
+        name: "OpenRouter logo",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Planning / Routing / Thinking provider",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Planning / Routing / Thinking model",
+      }),
+    );
+    const qwenOption = within(
+      screen.getByRole("listbox", {
+        name: "Planning / Routing / Thinking model",
+      }),
+    ).getByRole("option", { name: /qwen3:8b/ });
+    expect(qwenOption.querySelector(".llm-icon-select-current")).toBeInTheDocument();
+    expect(within(qwenOption).getByRole("img", { name: "Qwen logo" })).toBeInTheDocument();
   });
 
-  it("shows model test results beside the model controls", async () => {
+  it("shows the Liquid icon for LFM models", async () => {
+    apiMocks.llmModels.mockResolvedValue([
+      model,
+      {
+        ...model,
+        id: "model-liquid",
+        provider: "openrouter",
+        modelId: "lfm-2",
+        displayName: "Liquid LFM 2",
+        local: false,
+      },
+    ]);
     renderFeature();
-    fireEvent.click(await screen.findByRole("button", { name: "Test model" }));
-    expect(await screen.findAllByRole("status")).toHaveLength(2);
-    expect(screen.getAllByText("qwen3:8b: available.")).toHaveLength(2);
+    await screen.findByRole("combobox", {
+      name: "Planning / Routing / Thinking provider",
+    });
+    chooseMenuOption("Planning / Routing / Thinking provider", /OpenRouter/);
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Planning / Routing / Thinking model",
+      }),
+    );
+    expect(
+      within(
+        screen.getByRole("listbox", {
+          name: "Planning / Routing / Thinking model",
+        }),
+      )
+        .getByRole("option", { name: /Liquid LFM 2/ })
+        .querySelector('[aria-label="Liquid logo"]'),
+    ).toBeInTheDocument();
   });
 
   it("filters historical usage by yesterday, provider, and exact model", async () => {
     renderFeature();
     expect(
-      await screen.findByRole("combobox", { name: "Choose a model" }),
+      await screen.findByRole("combobox", {
+        name: "Planning / Routing / Thinking provider",
+      }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Yesterday" }));
     await waitFor(() =>
@@ -235,7 +324,7 @@ describe("LLM settings", () => {
     ).toBeInTheDocument();
     expect(apiMocks.llmProviders).toHaveBeenCalled();
     expect(apiMocks.llmModels).toHaveBeenCalled();
-    expect(apiMocks.activeLlmModel).toHaveBeenCalled();
+    expect(apiMocks.llmRoleConfigurations).toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "Sync models" }),
     ).not.toBeInTheDocument();
@@ -263,17 +352,16 @@ describe("LLM settings", () => {
     apiMocks.llmModels.mockResolvedValue([model, openai]);
     renderFeature();
     const selector = await screen.findByRole("combobox", {
-      name: "Choose a model",
+      name: "Planning / Routing / Thinking provider",
     });
     expect(selector).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: "Sync models" }),
-    ).toBeEnabled();
-    expect(screen.getByLabelText("API key for OpenAI GPT")).toBeEnabled();
-    fireEvent.change(selector, { target: { value: "model-openai" } });
-    fireEvent.click(screen.getByRole("button", { name: "Use this model" }));
+    chooseMenuOption("Planning / Routing / Thinking provider", /OpenAI GPT/);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Save configuration" })[0],
+    );
     await waitFor(() =>
-      expect(apiMocks.setActiveLlmModel).toHaveBeenCalledWith(
+      expect(apiMocks.setLlmRoleConfiguration).toHaveBeenCalledWith(
+        "planner",
         "openai",
         "gpt-test",
       ),
@@ -317,7 +405,7 @@ describe("LLM settings", () => {
     await waitFor(() => expect(apiMocks.llmUsageSummary).toHaveBeenCalled());
   });
 
-  it("switches the active model and refreshes the displayed selection", async () => {
+  it("saves planner configuration independently and refreshes its source", async () => {
     const gemini = {
       ...model,
       id: "model-gemini",
@@ -332,22 +420,27 @@ describe("LLM settings", () => {
     ]);
     apiMocks.llmModels.mockResolvedValue([model, gemini]);
     renderFeature();
-    const selector = await screen.findByRole("combobox", {
-      name: "Choose a model",
+    await screen.findByRole("combobox", {
+      name: "Planning / Routing / Thinking provider",
     });
-    fireEvent.change(selector, { target: { value: "model-gemini" } });
-    expect(screen.getAllByText("Gemini test").length).toBeGreaterThan(0);
+    chooseMenuOption("Planning / Routing / Thinking provider", /Google Gemini/);
+    chooseMenuOption("Planning / Routing / Thinking model", /Gemini test/);
     const historicalCalls = apiMocks.llmUsageSummary.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: "Use this model" }));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Save configuration" })[0],
+    );
     await waitFor(() =>
-      expect(apiMocks.setActiveLlmModel).toHaveBeenCalledWith(
+      expect(apiMocks.setLlmRoleConfiguration).toHaveBeenCalledWith(
+        "planner",
         "google",
         "gemini-test",
       ),
     );
-    expect(
-      await screen.findByText("Google Gemini · gemini-test"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Configuration saved and refreshed.")).toBeInTheDocument();
+    expect(screen.getAllByText("role").length).toBeGreaterThan(0);
+    expect(screen.getByText("Answer Generation")).toBeInTheDocument();
+    expect(screen.getAllByText("Local").length).toBeGreaterThan(0);
+    expect(apiMocks.llmRoleConfigurations).toHaveBeenCalledTimes(2);
     expect(apiMocks.llmUsageSummary).toHaveBeenCalledTimes(historicalCalls);
   });
 
@@ -363,80 +456,12 @@ describe("LLM settings", () => {
     await waitFor(() => expect(apiMocks.llmProviders).toHaveBeenCalledTimes(2));
   });
 
-  it("saves and revokes credentials without retaining or logging the secret", async () => {
-    apiMocks.llmProviders.mockResolvedValue([
-      { id: "ollama", configured: true },
-      { id: "openai", configured: true },
-    ]);
-    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const error = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("does not render provider credential controls", async () => {
     renderFeature();
-    const secret = "secure-test-key-not-for-storage";
-    const input = await screen.findByLabelText("API key for OpenAI GPT");
-    expect(input).toHaveAttribute("type", "password");
-    fireEvent.click(
-      within(input.closest("article")!).getByRole("button", {
-        name: "Show API key",
-      }),
-    );
-    expect(input).toHaveAttribute("type", "text");
-    fireEvent.click(
-      within(input.closest("article")!).getByRole("button", {
-        name: "Hide API key",
-      }),
-    );
-    expect(input).toHaveAttribute("type", "password");
-    fireEvent.change(input, { target: { value: secret } });
-    fireEvent.click(
-      within(input.closest("article")!).getByRole("button", {
-        name: "Replace key",
-      }),
-    );
-    await waitFor(() =>
-      expect(apiMocks.saveLlmCredential).toHaveBeenCalledWith("openai", secret),
-    );
-    await waitFor(() => expect(input).toHaveValue(""));
-    fireEvent.click(
-      [...input.closest("article")!.querySelectorAll("button")].find(
-        (button) => button.textContent === "Test",
-      )!,
-    );
-    await waitFor(() =>
-      expect(apiMocks.testLlmProvider).toHaveBeenCalledWith("openai"),
-    );
-    fireEvent.click(
-      [...input.closest("article")!.querySelectorAll("button")].find(
-        (button) => button.textContent === "Revoke",
-      )!,
-    );
-    await waitFor(() =>
-      expect(apiMocks.revokeLlmCredential).toHaveBeenCalledWith("openai"),
-    );
-    expect(confirm).toHaveBeenCalled();
-    expect(localStorage.getItem("apiKey")).toBeNull();
-    expect(sessionStorage.getItem("apiKey")).toBeNull();
-    expect(
-      Object.keys(localStorage)
-        .map((key) => localStorage.getItem(key))
-        .join(" "),
-    ).not.toContain(secret);
-    expect(
-      Object.keys(sessionStorage)
-        .map((key) => sessionStorage.getItem(key))
-        .join(" "),
-    ).not.toContain(secret);
-    expect(
-      [...log.mock.calls, ...warn.mock.calls, ...error.mock.calls]
-        .flat()
-        .join(" "),
-    ).not.toContain(secret);
-    confirm.mockRestore();
-    log.mockRestore();
-    warn.mockRestore();
-    error.mockRestore();
+    await screen.findByRole("combobox", {
+      name: "Planning / Routing / Thinking provider",
+    });
+    expect(screen.queryByLabelText(/API key for/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Provider connections")).not.toBeInTheDocument();
   });
 });

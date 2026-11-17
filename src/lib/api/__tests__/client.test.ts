@@ -169,7 +169,7 @@ describe("SitePilot backend API contract", () => {
     );
   });
   it("uses the runtime LLM and tenant usage routes with the backend response shapes", async () => {
-    const requests: Array<{ method: string; url: string }> = [];
+    const requests: Array<{ method: string; url: string; body?: unknown }> = [];
     const model = {
       id: "model-1",
       provider: "ollama",
@@ -200,11 +200,19 @@ describe("SitePilot backend API contract", () => {
       groupBy: "provider",
       data: [bucket],
     };
+    const roleConfigurations = {
+      planner: { provider: "ollama", modelId: "qwen3:8b", source: "role" },
+      answer: { provider: "google", modelId: "gemini-test", source: "shared" },
+    };
     http.defaults.adapter = async (config) => {
       const method = String(config.method);
       const url = String(config.url);
-      requests.push({ method, url });
-      const data = url.endsWith("/providers")
+      requests.push({ method, url, body: config.data });
+      const data = url.endsWith("/role-configurations")
+        ? roleConfigurations
+        : url.endsWith("/role-configurations/planner")
+          ? roleConfigurations
+          : url.endsWith("/providers")
         ? [
             {
               id: "ollama",
@@ -256,6 +264,12 @@ describe("SitePilot backend API contract", () => {
     await expect(
       api.setActiveLlmModel("ollama", "qwen3:8b"),
     ).resolves.toMatchObject({ provider: "ollama", modelId: "qwen3:8b" });
+    await expect(api.llmRoleConfigurations()).resolves.toEqual(
+      roleConfigurations,
+    );
+    await expect(
+      api.setLlmRoleConfiguration("planner", "ollama", "qwen3:8b"),
+    ).resolves.toEqual(roleConfigurations);
     await expect(api.llmUsageSummary(now, now)).resolves.toMatchObject({
       timezone: "Europe/Istanbul",
       data: [bucket],
@@ -278,11 +292,16 @@ describe("SitePilot backend API contract", () => {
       "post /api/llm/models/sync",
       "get /api/llm/active-model",
       "put /api/llm/active-model",
+      "get /api/llm/role-configurations",
+      "put /api/llm/role-configurations/planner",
       "get /api/llm/usage/summary",
       "get /api/llm/usage/daily",
       "get /api/llm/usage/by-model",
       "get /api/llm/usage/logs",
     ]);
+    expect(JSON.parse(String(requests.find(({ url }) =>
+      url.endsWith("/role-configurations/planner"),
+    )?.body))).toEqual({ provider: "ollama", modelId: "qwen3:8b" });
   });
   it("parses the actual health controller response instead of inventing a status field", async () => {
     http.defaults.adapter = async (config) => ({

@@ -30,6 +30,7 @@ import {
   llmCredentialTestSchema,
   llmModelSchema,
   llmProviderSchema,
+  llmRoleConfigurationsSchema,
   llmUsageAnalyticsSchema,
   llmUsageLogsSchema,
   searchResponseSchema,
@@ -421,6 +422,25 @@ export const api = {
     requireBase();
     const { data } = await http.get("/api/llm/active-model", { signal });
     return llmActiveModelSchema.parse(data);
+  },
+  async llmRoleConfigurations(signal?: AbortSignal) {
+    requireBase();
+    const { data } = await http.get("/api/llm/role-configurations", {
+      signal,
+    });
+    return llmRoleConfigurationsSchema.parse(data);
+  },
+  async setLlmRoleConfiguration(
+    role: "planner" | "answer",
+    provider: string,
+    modelId: string,
+  ) {
+    requireBase();
+    const { data } = await http.put(
+      `/api/llm/role-configurations/${role}`,
+      { provider, modelId },
+    );
+    return llmRoleConfigurationsSchema.parse(data);
   },
   async setActiveLlmModel(provider: string, modelId: string) {
     requireBase();

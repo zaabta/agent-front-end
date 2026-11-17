@@ -184,6 +184,15 @@ export const llmActiveModelSchema = z.object({
   fallbackModelId: z.string().nullable().optional(),
   ollamaThink: z.boolean().optional(),
 });
+export const llmRoleConfigurationSchema = z.object({
+  provider: z.string(),
+  modelId: z.string(),
+  source: z.enum(["role", "shared"]),
+});
+export const llmRoleConfigurationsSchema = z.object({
+  planner: llmRoleConfigurationSchema,
+  answer: llmRoleConfigurationSchema,
+});
 export const llmUsageBucketSchema = z.object({
   period: z.string(),
   provider: z.string().nullable(),
