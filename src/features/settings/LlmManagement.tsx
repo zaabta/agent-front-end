@@ -184,6 +184,19 @@ export function LlmManagement() {
     models.isSuccess &&
     roleConfigurations.isSuccess &&
     !managementIssue;
+  const syncModels = useMutation({
+    mutationFn: () => api.syncLlmModels(),
+    onMutate: () => {
+      setNotice("");
+      setError("");
+    },
+    onSuccess: async () => {
+      await models.refetch({ throwOnError: true });
+      setManagementIssue("");
+      setNotice("Models refreshed from providers.");
+    },
+    onError: handleAdminError,
+  });
   const updateRoleConfiguration = useMutation({
     mutationFn: (input: {
       role: LlmRole;
@@ -495,6 +508,19 @@ export function LlmManagement() {
               select the models used for planning and answers.
             </p>
           </div>
+          <button
+            type="button"
+            className="button secondary llm-action"
+            disabled={!canManage || syncModels.isPending}
+            onClick={() => syncModels.mutate()}
+          >
+            {syncModels.isPending ? (
+              <LoaderCircle className="spin" size={14} />
+            ) : (
+              <RefreshCw size={14} />
+            )} {" "}
+            {syncModels.isPending ? "Refreshing…" : "Refresh models"}
+          </button>
         </div>
         {!auth.session ? (
           <p className="llm-permission">

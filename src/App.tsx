@@ -39,10 +39,8 @@ import {
   Copy,
   Eye,
   EyeOff,
-  FileCode,
   FileSpreadsheet,
   FileText,
-  FileType,
   FolderOpen,
   Globe2,
   LayoutDashboard,
@@ -53,7 +51,6 @@ import {
   Pencil,
   Plus,
   RotateCcw,
-  Rows3,
   Search,
   Send,
   Settings2,
@@ -62,7 +59,6 @@ import {
   Sparkles,
   Square,
   Sun,
-  Table2,
   ThumbsDown,
   ThumbsUp,
   Trash2,
@@ -87,6 +83,7 @@ import { useAuth } from "./lib/auth/AuthProvider";
 import { canViewWorkerMonitoring } from "./lib/auth/authorization";
 import { DocumentUpload } from "./features/documents/DocumentUpload";
 import { DocumentVersionPanel } from "./features/documents/DocumentVersionPanel";
+import { DocumentFormatIcon } from "./features/documents/DocumentFormatIcon";
 import { AgentCitations } from "./features/agent/AgentCitations";
 import { AgentAnswer, readableAgentText } from "./features/agent/AgentAnswer";
 import { UserManagement } from "./features/users/UserManagement";
@@ -708,51 +705,6 @@ function DocumentsPage() {
       <DocumentUpload />
       <DocumentLibrary />
     </div>
-  );
-}
-const documentTypeIcons: Record<
-  string,
-  { icon: LucideIcon; className: string; label: string }
-> = {
-  md: { icon: FileCode, className: "type-markdown", label: "MD" },
-  txt: { icon: FileText, className: "type-text", label: "TXT" },
-  docx: { icon: FileType, className: "type-word", label: "DOCX" },
-  pdf: { icon: FileText, className: "type-pdf", label: "PDF" },
-  xlsx: { icon: FileSpreadsheet, className: "type-xlsx", label: "XLSX" },
-  xls: { icon: Table2, className: "type-xls", label: "XLS" },
-  csv: { icon: Rows3, className: "type-csv", label: "CSV" },
-};
-function documentTypeIcon(fileName: string) {
-  const extension = fileName.toLowerCase().split(".").pop() ?? "";
-  return (
-    documentTypeIcons[extension] ?? {
-      icon: FileText,
-      className: "type-default",
-      label: "FILE",
-    }
-  );
-}
-function DocumentFormatIcon({
-  fileName,
-  className = "",
-}: {
-  fileName: string;
-  className?: string;
-}) {
-  const {
-    icon: Icon,
-    className: typeClass,
-    label,
-  } = documentTypeIcon(fileName);
-  return (
-    <span
-      className={`document-format-icon ${typeClass} ${className}`}
-      role="img"
-      aria-label={`${label} file`}
-    >
-      <Icon aria-hidden="true" size={18} />
-      <b aria-hidden="true">{label}</b>
-    </span>
   );
 }
 function Overview() {

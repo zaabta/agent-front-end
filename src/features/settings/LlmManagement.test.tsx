@@ -274,6 +274,41 @@ describe("LLM settings", () => {
     ).toBeInTheDocument();
   });
 
+  it("syncs registered Ollama models and refreshes both role choices", async () => {
+    const lfmModel = {
+      ...model,
+      id: "model-liquid-ollama",
+      modelId: "LiquidAI/lfm2.5-2.6b:latest",
+      displayName: "LiquidAI LFM 2.5",
+    };
+    apiMocks.syncLlmModels.mockImplementation(async () => {
+      apiMocks.llmModels.mockResolvedValue([model, lfmModel]);
+      return [model, lfmModel];
+    });
+    renderFeature();
+    await screen.findByRole("combobox", {
+      name: "Planning / Routing / Thinking model",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Models refreshed from providers.",
+    );
+    expect(apiMocks.syncLlmModels).toHaveBeenCalledTimes(1);
+    expect(apiMocks.llmModels).toHaveBeenCalledTimes(2);
+    for (const role of [
+      "Planning / Routing / Thinking",
+      "Answer Generation",
+    ]) {
+      fireEvent.click(screen.getByRole("combobox", { name: `${role} model` }));
+      expect(
+        within(
+          screen.getByRole("listbox", { name: `${role} model` }),
+        ).getByRole("option", { name: /LiquidAI LFM 2\.5/ }),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("combobox", { name: `${role} model` }));
+    }
+  });
+
   it("filters historical usage by yesterday, provider, and exact model", async () => {
     renderFeature();
     expect(

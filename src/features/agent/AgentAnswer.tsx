@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
 
 export function readableAgentText(text: string) {
-  return text;
+  return text
+    .replace(/^[ \t]*Sources:[ \t]*(?:\[\[[^\]\r\n]+\]\][ \t]*)+[ \t]*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function renderLines(text: string): ReactNode[] {
