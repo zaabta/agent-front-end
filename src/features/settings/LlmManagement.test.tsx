@@ -274,16 +274,30 @@ describe("LLM settings", () => {
     ).toBeInTheDocument();
   });
 
-  it("syncs registered Ollama models and refreshes both role choices", async () => {
+  it("syncs provider models and refreshes provider status and both role choices", async () => {
     const lfmModel = {
       ...model,
       id: "model-liquid-ollama",
       modelId: "LiquidAI/lfm2.5-2.6b:latest",
       displayName: "LiquidAI LFM 2.5",
     };
+    const openaiModel = {
+      ...model,
+      id: "model-openai",
+      provider: "openai",
+      modelId: "gpt-4.1-mini",
+      displayName: "gpt-4.1-mini",
+      local: false,
+    };
     apiMocks.syncLlmModels.mockImplementation(async () => {
-      apiMocks.llmModels.mockResolvedValue([model, lfmModel]);
-      return [model, lfmModel];
+      apiMocks.llmProviders.mockResolvedValue([
+        { id: "ollama", configured: true },
+        { id: "google", configured: false },
+        { id: "openrouter", configured: true },
+        { id: "openai", configured: true },
+      ]);
+      apiMocks.llmModels.mockResolvedValue([model, lfmModel, openaiModel]);
+      return [model, lfmModel, openaiModel];
     });
     renderFeature();
     await screen.findByRole("combobox", {
@@ -295,6 +309,7 @@ describe("LLM settings", () => {
     );
     expect(apiMocks.syncLlmModels).toHaveBeenCalledTimes(1);
     expect(apiMocks.llmModels).toHaveBeenCalledTimes(2);
+    expect(apiMocks.llmProviders).toHaveBeenCalledTimes(2);
     for (const role of [
       "Planning / Routing / Thinking",
       "Answer Generation",
@@ -307,6 +322,15 @@ describe("LLM settings", () => {
       ).toBeInTheDocument();
       fireEvent.click(screen.getByRole("combobox", { name: `${role} model` }));
     }
+    chooseMenuOption("Answer Generation provider", /OpenAI GPT/);
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Answer Generation model" }),
+    );
+    expect(
+      within(
+        screen.getByRole("listbox", { name: "Answer Generation model" }),
+      ).getByRole("option", { name: /gpt-4\.1-mini/ }),
+    ).toBeInTheDocument();
   });
 
   it("filters historical usage by yesterday, provider, and exact model", async () => {

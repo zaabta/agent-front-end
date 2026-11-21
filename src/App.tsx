@@ -2061,7 +2061,12 @@ function Agent() {
                             </span>
                           </small>
                         )}
-                        {streamText && <AgentAnswer content={streamText} />}
+                        {streamText && (
+                          <AgentAnswer
+                            content={streamText}
+                            isAnimating={streaming && !streamFinalized}
+                          />
+                        )}
                         {streamCancelled && (
                           <p className="assistant-message-state">
                             Generation cancelled.

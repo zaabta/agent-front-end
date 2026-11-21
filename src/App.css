@@ -2382,7 +2382,8 @@ html[data-theme="dark"] .document-format-icon.type-csv {
   color: #9ad2aa;
 }
 html[data-theme="dark"] .workspace-grid .agent-answer-content pre,
-html[data-theme="dark"] .agent-table-scroll th {
+html[data-theme="dark"] .workspace-grid .agent-answer-content [data-streamdown="code-block"],
+html[data-theme="dark"] .workspace-grid .agent-answer-content [data-streamdown="table-header"] {
   background: #202830;
   color: var(--foreground);
 }
@@ -4157,18 +4158,17 @@ html[data-theme="dark"] ::selection {
   unicode-bidi: plaintext;
   text-align: start;
 }
-.workspace-grid .agent-answer-content > p {
+.workspace-grid .agent-answer-content p {
   margin: 0;
   white-space: pre-wrap;
 }
-.workspace-grid .agent-answer-content > h4 {
+.workspace-grid .agent-answer-content :is(h1, h2, h3, h4, h5, h6) {
   margin: 7px 0 0;
   font-size: 14px;
   font-weight: 700;
   line-height: 1.45;
 }
-.workspace-grid .agent-answer-content > ul,
-.workspace-grid .agent-answer-content > ol {
+.workspace-grid .agent-answer-content :is(ul, ol) {
   display: grid;
   gap: 5px;
   margin: 0;
@@ -4178,6 +4178,30 @@ html[data-theme="dark"] ::selection {
   padding-inline-start: 2px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.workspace-grid .agent-answer-content [data-streamdown="strong"] {
+  font-weight: 700;
+}
+.workspace-grid .agent-answer-content [data-streamdown="link"] {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.workspace-grid .agent-answer-content [data-streamdown="blockquote"] {
+  margin: 0;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--border-strong);
+  color: var(--muted);
+}
+.workspace-grid .agent-answer-content [data-streamdown="horizontal-rule"] {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.workspace-grid .agent-answer-content [data-streamdown="inline-code"] {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #f0eee9;
 }
 .workspace-grid .agent-answer-content pre {
   max-width: 100%;
@@ -4193,6 +4217,54 @@ html[data-theme="dark"] ::selection {
   white-space: pre;
   direction: ltr;
 }
+.workspace-grid .agent-answer-content [data-streamdown="code-block"] {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #f6f5f2;
+  color: #302e2a;
+}
+.workspace-grid .agent-answer-content [data-streamdown="code-block-body"] {
+  max-height: none;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+.workspace-grid .agent-answer-content [data-streamdown="code-block-header"] {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.workspace-grid .agent-answer-content [data-streamdown="table-wrapper"] {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.workspace-grid .agent-answer-content [data-streamdown="table"] {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: start;
+  font-size: 12px;
+}
+.workspace-grid .agent-answer-content [data-streamdown="table-header-cell"],
+.workspace-grid .agent-answer-content [data-streamdown="table-cell"] {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+.workspace-grid .agent-answer-content [data-streamdown="table-header"] {
+  background: #f6f5f2;
+  font-weight: 700;
+}
 .workspace-grid .agent-answer-content code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.92em;
@@ -4201,27 +4273,6 @@ html[data-theme="dark"] ::selection {
   padding: 2px 5px;
   border-radius: 4px;
   background: #f0eee9;
-}
-.agent-table-scroll {
-  max-width: 100%;
-  overflow-x: auto;
-}
-.agent-table-scroll table {
-  min-width: 100%;
-  border-collapse: collapse;
-  text-align: start;
-  font-size: 12px;
-}
-.agent-table-scroll th,
-.agent-table-scroll td {
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  text-align: start;
-  vertical-align: top;
-}
-.agent-table-scroll th {
-  background: #f6f5f2;
-  font-weight: 700;
 }
 .workspace-grid .assistant-copy-row {
   display: flex;

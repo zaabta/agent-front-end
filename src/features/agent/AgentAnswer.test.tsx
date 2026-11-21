@@ -5,12 +5,13 @@ import { AgentAnswer, readableAgentText } from "./AgentAnswer";
 describe("Agent answer Markdown and direction", () => {
   it("renders bold Markdown and keeps Arabic paragraphs auto-directed", () => {
     const { container } = render(<AgentAnswer content={"مرحبا **بك**"} />);
-    expect(screen.getByText("بك").tagName).toBe("STRONG");
-    expect(container.querySelector(".agent-answer-content")).toHaveAttribute(
-      "dir",
-      "auto",
+    expect(screen.getByText("بك")).toHaveAttribute(
+      "data-streamdown",
+      "strong",
     );
-    expect(container.querySelector("p")).toHaveAttribute("dir", "auto");
+    expect(
+      container.querySelector('.agent-answer-content [dir="rtl"]'),
+    ).toBeInTheDocument();
   });
 
   it("renders fenced code as left-to-right and Markdown tables as semantic tables", () => {
@@ -23,7 +24,9 @@ describe("Agent answer Markdown and direction", () => {
     );
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(container.querySelector("pre")).toHaveAttribute("dir", "ltr");
+    expect(
+      container.querySelector('[data-streamdown="code-block"][dir="ltr"]'),
+    ).toBeInTheDocument();
     expect(screen.getByText("const value = 42")).toBeInTheDocument();
   });
 

@@ -191,7 +191,10 @@ export function LlmManagement() {
       setError("");
     },
     onSuccess: async () => {
-      await models.refetch({ throwOnError: true });
+      await Promise.all([
+        models.refetch({ throwOnError: true }),
+        providers.refetch({ throwOnError: true }),
+      ]);
       setManagementIssue("");
       setNotice("Models refreshed from providers.");
     },
