@@ -286,8 +286,9 @@
   display: none;
 }
 .page-content {
-  max-width: 1150px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   padding: 36px 43px 25px;
 }
 .page-intro {
@@ -4412,6 +4413,22 @@ html[data-theme="dark"] ::selection {
   justify-items: start;
   gap: 7px;
   margin-top: 10px;
+}
+.workspace-grid .assistant-result .agent-inline-citations,
+.workspace-grid .assistant-result .agent-answer-claim-citations {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 6px;
+  font-size: 11px;
+}
+.workspace-grid .assistant-result .agent-inline-citations a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.workspace-grid .assistant-result .agent-answer-claim {
+  margin-bottom: 8px;
 }
 .workspace-grid .assistant-result .citation > .citation-details {
   display: grid;

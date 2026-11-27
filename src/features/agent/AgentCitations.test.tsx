@@ -15,6 +15,7 @@ describe("agent citation rendering", () => {
           },
           {
             source: "report.docx",
+            citationId: "C2",
             sourceRef: "ref-docx",
             documentVersionId: "version-4",
             chunkIndex: 3,
@@ -29,13 +30,31 @@ describe("agent citation rendering", () => {
     expect(
       screen.getByText("Passage 1 · Heading: Setup · ref-md"),
     ).toBeInTheDocument();
-    expect(screen.getByText("report.docx")).toBeInTheDocument();
+    expect(screen.getByText("report.docx").closest("#citation-C2")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "DOCX file" })).toBeInTheDocument();
     expect(
       screen.getByText(
         "Passage 4 · Paragraph 7–8 · Version version-4 · ref-docx",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows exact spreadsheet sheet, row, and cell metadata", () => {
+    render(
+      <AgentCitations
+        citations={[
+          {
+            source: "costs.xlsx",
+            citationId: "C1",
+            sheetName: "Costs",
+            rowStart: 4,
+            rowEnd: 5,
+            cellRange: "A4:B5",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Sheet Costs · Rows 4–5 · Cells A4:B5")).toBeInTheDocument();
   });
   it("renders no citation panel when the backend provides no sources", () => {
     const { container } = render(<AgentCitations citations={[]} />);
@@ -83,5 +102,40 @@ describe("agent citation rendering", () => {
     expect(screen.getByText("concrete-structure1.pdf")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "PDF file" })).toBeInTheDocument();
     expect(screen.getByText("Page 1")).toBeInTheDocument();
+  });
+
+  it("renders inline source markers as deduplicated file cards", () => {
+    const { container } = render(
+      <AgentCitations
+        citations={[]}
+        answerText={
+          "Sources: [[09-faq-and-response-guardrails.md (section Web Search)]] [[09-faq-and-response-guardrails.md (section Web Search)]] [[04-companies-and-branches.md (section Companies and Branches)]] [[_نظام_إدارة_متكامل_لمصنع_البلاستيك_نسخة_متطلبات_كاملة.docx (section 18. الإشعارات, paragraphs 280-282)]]"
+        }
+      />,
+    );
+    expect(
+      within(container).getByText("09-faq-and-response-guardrails.md"),
+    ).toBeInTheDocument();
+    expect(
+      within(container).getAllByRole("img", { name: "MD file" }),
+    ).toHaveLength(2);
+    expect(container.querySelectorAll(".citation")).toHaveLength(3);
+    expect(
+      within(container).getByText("04-companies-and-branches.md"),
+    ).toBeInTheDocument();
+    expect(
+      within(container).getByText(
+        "_نظام_إدارة_متكامل_لمصنع_البلاستيك_نسخة_متطلبات_كاملة.docx",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(container).getByRole("img", { name: "DOCX file" }),
+    ).toBeInTheDocument();
+    expect(
+      within(container).getByText(
+        "Section 18. الإشعارات · Paragraphs 280-282",
+      ),
+    )
+      .toBeInTheDocument();
   });
 });

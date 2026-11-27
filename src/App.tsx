@@ -48,6 +48,7 @@ import {
   Menu,
   Moon,
   PanelLeftClose,
+  Plug,
   Pencil,
   Plus,
   RotateCcw,
@@ -89,12 +90,16 @@ import { AgentAnswer, readableAgentText } from "./features/agent/AgentAnswer";
 import { UserManagement } from "./features/users/UserManagement";
 import { LlmManagement } from "./features/settings/LlmManagement";
 import { CustomTools } from "./features/tools/CustomTools";
+import { ConnectionProfiles } from "./features/tools/ConnectionProfiles";
+import { Integrations } from "./features/tools/Integrations";
 import { AccountMenu } from "./components/AccountMenu";
 
 type Page =
   | "Overview"
   | "AI Agent"
   | "Tools"
+  | "Connection Profiles"
+  | "Integrations"
   | "Documents"
   | "Search"
   | "Settings"
@@ -123,7 +128,11 @@ const navGroups: {
   },
   {
     label: "SETTINGS",
-    items: [{ label: "Settings", icon: Settings2, path: "/settings" }],
+    items: [
+      { label: "Settings", icon: Settings2, path: "/settings" },
+      { label: "Integrations", icon: Plug, path: "/integrations" },
+      { label: "Connection Profiles", icon: Plug, path: "/agent-studio/connections" },
+    ],
   },
 ];
 function SignInPage() {
@@ -634,6 +643,8 @@ function Shell() {
             <Route path="/" element={<Overview />} />
             <Route path="/agent" element={<Agent />} />
             <Route path="/agent-studio/tools" element={<CustomTools />} />
+            <Route path="/agent-studio/connections" element={<ConnectionProfiles />} />
+            <Route path="/integrations" element={<Integrations />} />
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route
@@ -1166,6 +1177,7 @@ function Agent() {
   const [streamSources, setStreamSources] = useState<AgentMessage["citations"]>(
     [],
   );
+  const [streamEvidenceReferences, setStreamEvidenceReferences] = useState<AgentMessage["evidenceReferences"]>([]);
   const [streamFinalized, setStreamFinalized] = useState(false);
   const [streamStatus, setStreamStatus] = useState("");
   const [streamError, setStreamError] = useState("");
@@ -1338,6 +1350,7 @@ function Agent() {
     setPendingQuestion("");
     setStreamText("");
     setStreamSources([]);
+    setStreamEvidenceReferences([]);
     setStreamFinalized(false);
     showPersistentStatus("");
   }, []);
@@ -1377,6 +1390,7 @@ function Agent() {
       streamVerificationRef.current = "provisional";
       setStreamText("");
       setStreamSources([]);
+      setStreamEvidenceReferences([]);
     } else if (event === "cancelled") {
       confirmedCancelledRef.current = true;
       setStreamCancelled(true);
@@ -1391,6 +1405,7 @@ function Agent() {
       streamVerificationRef.current = "";
       setStreamText("");
       setStreamSources([]);
+      setStreamEvidenceReferences([]);
     } else if (event === "done") {
       setActiveRunId("");
       activeRunIdRef.current = "";
@@ -1440,6 +1455,7 @@ function Agent() {
       const answer = await api.askMessage(conversationId, fallbackQuestion);
       setStreamText(answer.content);
       setStreamSources(answer.citations);
+      setStreamEvidenceReferences(answer.evidenceReferences);
       setStreamFinalized(true);
       setFallbackQuestion("");
       showPersistentStatus("");
@@ -1479,6 +1495,7 @@ function Agent() {
     setMessage("");
     setStreamText("");
     setStreamSources([]);
+    setStreamEvidenceReferences([]);
     setStreamFinalized(false);
     setStreamError("");
     setFallbackQuestion("");
@@ -1529,6 +1546,7 @@ function Agent() {
       ) {
         setStreamText(final.content);
         setStreamSources(final.citations);
+        setStreamEvidenceReferences(final.evidenceReferences);
         setStreamFinalized(true);
         setStreamCancelled(false);
         activeRunIdRef.current = "";
@@ -1543,6 +1561,7 @@ function Agent() {
         if (!controller.signal.aborted) {
           setStreamText("");
           setStreamSources([]);
+          setStreamEvidenceReferences([]);
           setStreamFinalized(false);
           setStreamError(errorMessage(error));
           setFallbackQuestion(text);
@@ -1638,6 +1657,7 @@ function Agent() {
         activeRunIdRef.current = "";
         setStreamText("");
         setStreamSources([]);
+        setStreamEvidenceReferences([]);
         setStreamFinalized(false);
         setCancelNotice(
           result.status === "not-found"
@@ -1979,7 +1999,7 @@ function Agent() {
                               <span
                                 className="agent-ellipsis"
                                 aria-hidden="true"
-                              >
+                                >
                                 <i />
                                 <i />
                                 <i />
@@ -1988,7 +2008,11 @@ function Agent() {
                           ) : ["completed", "complete"].includes(m.status) &&
                             m.content.trim() ? (
                             <>
-                              <AgentAnswer content={m.content} />
+                              <AgentAnswer
+                                content={m.content}
+                                citations={m.citations}
+                                evidenceReferences={m.evidenceReferences}
+                              />
                               <AnswerActions
                                 feedback={answerFeedback[m.id] ?? null}
                                 copied={copiedId === m.id}
@@ -2014,7 +2038,10 @@ function Agent() {
                             </p>
                           )}
                           {["completed", "complete"].includes(m.status) && (
-                            <AgentCitations citations={m.citations} />
+                            <AgentCitations
+                              citations={m.citations}
+                              answerText={m.content}
+                            />
                           )}
                           {(m.status === "failed" ||
                             m.status === "interrupted") &&
@@ -2065,6 +2092,8 @@ function Agent() {
                           <AgentAnswer
                             content={streamText}
                             isAnimating={streaming && !streamFinalized}
+                            citations={streamSources}
+                            evidenceReferences={streamEvidenceReferences}
                           />
                         )}
                         {streamCancelled && (
@@ -2105,7 +2134,10 @@ function Agent() {
                           />
                         )}
                         {streamFinalized && (
-                          <AgentCitations citations={streamSources} />
+                          <AgentCitations
+                            citations={streamSources}
+                            answerText={streamText}
+                          />
                         )}
                       </article>
                     )}

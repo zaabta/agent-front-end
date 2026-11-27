@@ -13,6 +13,10 @@ import {
   authResponseSchema,
   changeTenantMemberRoleResponseSchema,
   customToolConnectionSchema,
+  availableUserConnectionSchema,
+  connectionCredentialSchema,
+  credentialEncryptionStatusSchema,
+  connectionProfilePayloadSchema,
   customToolExecutionSchema,
   customToolPayloadSchema,
   customToolSchema,
@@ -23,6 +27,7 @@ import {
   documentSummarySchema,
   documentVersionSchema,
   documentVersionsResponseSchema,
+  evidenceReferenceSchema,
   healthResponseSchema,
   jobSnapshotSchema,
   llmActiveModelSchema,
@@ -35,6 +40,7 @@ import {
   llmUsageLogsSchema,
   searchResponseSchema,
   tenantMemberSchema,
+  userConnectionStatusSchema,
   type AgentMessageDto,
   type AssignableTenantRole,
   type ConversationDto,
@@ -57,6 +63,11 @@ export type DocumentVersion = z.infer<typeof documentVersionSchema>;
 export type CustomTool = z.infer<typeof customToolSchema>;
 export type CustomToolPayload = z.infer<typeof customToolPayloadSchema>;
 export type CustomToolConnection = z.infer<typeof customToolConnectionSchema>;
+export type AvailableUserConnection = z.infer<typeof availableUserConnectionSchema>;
+export type ConnectionProfilePayload = z.infer<typeof connectionProfilePayloadSchema>;
+export type CreateConnectionProfilePayload = ConnectionProfilePayload & { id: string };
+export type ConnectionCredential = z.infer<typeof connectionCredentialSchema>;
+export type UserConnectionStatus = z.infer<typeof userConnectionStatusSchema>;
 export type CustomToolExecution = z.infer<typeof customToolExecutionSchema>;
 export type CustomToolTestResult = z.infer<typeof customToolTestResultSchema>;
 export type AgentRunCancelStatus =
@@ -226,6 +237,7 @@ function toMessage(
   role: "user" | "assistant",
   content: string,
   citations: AgentMessage["citations"] = [],
+  evidenceReferences: AgentMessage["evidenceReferences"] = [],
 ): AgentMessage {
   return {
     id,
@@ -233,8 +245,41 @@ function toMessage(
     content,
     status: "complete",
     citations,
+    evidenceReferences,
     createdAt: new Date().toISOString(),
   };
+}
+function citationsFromEvidenceReferences(
+  references: z.infer<typeof evidenceReferenceSchema>[],
+): AgentMessage["citations"] {
+  const citations = new Map<string, AgentMessage["citations"][number]>();
+  for (const { sources } of references) {
+    for (const source of sources) {
+      const citation = {
+        source: source.filename,
+        citationId: source.citationId,
+        documentId: source.documentId,
+        documentVersionId: source.documentVersionId,
+        sourceRef: source.sourceRef,
+        chunkIndex: source.chunkIndex,
+        pageNumber: source.pageNumber,
+        location: source.location ?? null,
+        headingPath: source.headingPath,
+        sheet: source.sheetName ?? null,
+        sheetName: source.sheetName,
+        rowStart: source.rowStart ?? null,
+        rowEnd: source.rowEnd ?? null,
+        rowNumbers: source.rowNumbers,
+        cellRange: source.cellRange ?? null,
+        cellRefs: source.cellRefs,
+        matchedCell: source.matchedCell ?? null,
+        paragraphStart: source.paragraphStart,
+        paragraphEnd: source.paragraphEnd,
+      };
+      citations.set(source.citationId ?? `${source.documentId}:${source.chunkIndex}`, citation);
+    }
+  }
+  return [...citations.values()];
 }
 const conversationIdsKey = () => {
   const i = session.getState()?.identity;
@@ -286,6 +331,78 @@ export const api = {
       signal,
     });
     return z.array(customToolConnectionSchema).parse(data);
+  },
+  async customToolCredentialEncryptionStatus(signal?: AbortSignal) {
+    requireBase();
+    const { data } = await http.get(
+      "/api/agent/custom-tools/connections/encryption-status",
+      { signal },
+    );
+    return credentialEncryptionStatusSchema.parse(data);
+  },
+  async availableUserConnections(signal?: AbortSignal) {
+    requireBase();
+    const { data } = await http.get("/api/agent/custom-tools/connections/available", { signal });
+    return z.array(availableUserConnectionSchema).parse(data);
+  },
+  async createCustomToolConnection(payload: CreateConnectionProfilePayload) {
+    requireBase();
+    const { data } = await http.post("/api/agent/custom-tools/connections", payload);
+    return customToolConnectionSchema.parse(data);
+  },
+  async updateCustomToolConnection(id: string, payload: Omit<ConnectionProfilePayload, "id">) {
+    requireBase();
+    const { data } = await http.put(
+      `/api/agent/custom-tools/connections/${encodeURIComponent(id)}`,
+      payload,
+    );
+    return customToolConnectionSchema.parse(data);
+  },
+  async deleteCustomToolConnection(id: string) {
+    requireBase();
+    const { data } = await http.delete(
+      `/api/agent/custom-tools/connections/${encodeURIComponent(id)}`,
+    );
+    return z.object({ id: z.string(), deleted: z.literal(true) }).parse(data);
+  },
+  async customToolConnectionCredentials(profile: string, signal?: AbortSignal) {
+    requireBase();
+    const { data } = await http.get(
+      `/api/agent/custom-tools/connections/${encodeURIComponent(profile)}/credentials`,
+      { signal },
+    );
+    return z.array(connectionCredentialSchema).parse(data);
+  },
+  async loginCustomToolConnection(profile: string, name: string, email: string, password: string) {
+    requireBase();
+    const { data } = await http.post(
+      `/api/agent/custom-tools/connections/${encodeURIComponent(profile)}/credentials/login`,
+      { name, email, password },
+    );
+    return connectionCredentialSchema.parse(data);
+  },
+  async connectAtomic(profile: string, email: string, password: string) {
+    requireBase();
+    const { data } = await http.post(
+      `/api/agent/custom-tools/connections/${encodeURIComponent(profile)}/connect/atomic`,
+      { email, password },
+    );
+    return userConnectionStatusSchema.parse(data);
+  },
+  async userConnectionStatus(profile: string, signal?: AbortSignal) {
+    requireBase();
+    const { data } = await http.get(
+      `/api/agent/custom-tools/connections/${encodeURIComponent(profile)}/status`,
+      { signal },
+    );
+    return userConnectionStatusSchema.parse(data);
+  },
+  async disconnectCustomToolConnection(profile: string) {
+    requireBase();
+    const { data } = await http.delete(
+      `/api/agent/custom-tools/connections/${encodeURIComponent(profile)}/disconnect`,
+    );
+    return userConnectionStatusSchema.parse(data);
   },
   async customTools(signal?: AbortSignal) {
     requireBase();
@@ -607,7 +724,13 @@ export const api = {
         `Conversation response does not match SitePilot API contract: ${parsed.error.issues.map((issue) => `${issue.path.join(".") || "response"}: ${issue.message}`).join("; ")}`,
       );
     const messages = parsed.data.messages.map((m) => ({
-      ...toMessage(m.id, m.role, m.content ?? "", m.citations),
+      ...toMessage(
+        m.id,
+        m.role,
+        m.content ?? "",
+        m.evidenceReferences.length ? citationsFromEvidenceReferences(m.evidenceReferences) : m.citations,
+        m.evidenceReferences,
+      ),
       status: m.status,
       stage: m.stage ?? undefined,
       createdAt: m.createdAt ?? new Date().toISOString(),
@@ -678,10 +801,24 @@ export const api = {
       result.data.citationValidation === "valid"
         ? result.data.sources.map((source) => ({
             source: source.filename,
+            citationId: source.citationId,
             documentId: source.documentId,
             documentVersionId: source.documentVersionId,
+            chunkId: source.chunkId,
             sourceRef: source.sourceRef,
             chunkIndex: source.chunkIndex,
+            pageNumber: source.pageNumber,
+            location: source.location,
+            headingPath: source.headingPath,
+            paragraphStart: source.paragraphStart,
+            paragraphEnd: source.paragraphEnd,
+            sheetName: source.sheetName,
+            rowStart: source.rowStart,
+            rowEnd: source.rowEnd,
+            rowNumbers: source.rowNumbers,
+            cellRange: source.cellRange,
+            cellRefs: source.cellRefs,
+            matchedCell: source.matchedCell,
           }))
         : [];
     return toMessage(
@@ -689,6 +826,7 @@ export const api = {
       "assistant",
       result.data.answer,
       citations,
+      result.data.evidenceReferences,
     );
   },
   async sendMessage(_id: string, _content: string): Promise<AgentMessage> {
@@ -799,10 +937,24 @@ export const api = {
       result.data.citationValidation === "valid"
         ? result.data.sources.map((source) => ({
             source: source.filename,
+            citationId: source.citationId,
             documentId: source.documentId,
             documentVersionId: source.documentVersionId,
+            chunkId: source.chunkId,
             sourceRef: source.sourceRef,
             chunkIndex: source.chunkIndex,
+            pageNumber: source.pageNumber,
+            location: source.location,
+            headingPath: source.headingPath,
+            paragraphStart: source.paragraphStart,
+            paragraphEnd: source.paragraphEnd,
+            sheetName: source.sheetName,
+            rowStart: source.rowStart,
+            rowEnd: source.rowEnd,
+            rowNumbers: source.rowNumbers,
+            cellRange: source.cellRange,
+            cellRefs: source.cellRefs,
+            matchedCell: source.matchedCell,
           }))
         : [];
     return toMessage(
@@ -810,6 +962,7 @@ export const api = {
       "assistant",
       result.data.answer,
       citations,
+      result.data.evidenceReferences,
     );
   },
   async cancelAgentRun(
@@ -1173,6 +1326,7 @@ const conversationSchemaBackend = z.object({
             }),
           )
           .default([]),
+        evidenceReferences: z.array(evidenceReferenceSchema).default([]),
         createdAt: z.string().optional(),
         conversationId: z.string().optional(),
       }),

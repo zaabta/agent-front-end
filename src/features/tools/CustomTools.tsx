@@ -34,6 +34,8 @@ import {
   api,
   ApiError,
   type CustomTool,
+  type CustomToolConnection,
+  type ConnectionCredential,
   type CustomToolPayload,
 } from "../../lib/api/client";
 import { useAuth } from "../../lib/auth/AuthProvider";
@@ -58,6 +60,12 @@ type Draft = {
   displayName: string;
   description: string;
   endpoint: string;
+  targetMode: "endpoint" | "profile";
+  connectionProfile: string;
+  path: string;
+  authScope: "NONE" | "SHARED" | "PER_USER";
+  connectionCredentialId: string;
+  allowedUserIds: string;
   parameters: SchemaParameter[];
   queryMappings: string;
   inputSchema: string;
@@ -81,6 +89,12 @@ const initialDraft: Draft = {
   displayName: "",
   description: "",
   endpoint: "",
+  targetMode: "endpoint",
+  connectionProfile: "",
+  path: "/",
+  authScope: "NONE",
+  connectionCredentialId: "",
+  allowedUserIds: "",
   parameters: [],
   queryMappings: "{}",
   inputSchema: emptySchema,
@@ -112,7 +126,8 @@ function isParameterSchema(schema: Record<string, unknown>) {
         key,
       ),
     ) &&
-    Object.values(properties as Record<string, unknown>).every((value) => {
+    Object.entries(properties as Record<string, unknown>).every(([name, value]) => {
+      if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name)) return false;
       if (!value || typeof value !== "object" || Array.isArray(value))
         return false;
       const parameter = value as Record<string, unknown>;
@@ -129,6 +144,8 @@ function isParameterSchema(schema: Record<string, unknown>) {
 }
 
 function draftForTool(tool: CustomTool): Draft {
+  const usesConnectionProfile =
+    !!tool.connectionProfile && tool.connectionProfile !== "direct";
   const isDefaultOutput =
     tool.outputSchema.additionalProperties === true &&
     Object.keys((tool.outputSchema.properties as object) ?? {}).length === 0;
@@ -137,7 +154,13 @@ function draftForTool(tool: CustomTool): Draft {
     slugCustomized: true,
     displayName: tool.displayName,
     description: tool.description,
-    endpoint: tool.endpoint ?? "",
+    endpoint: usesConnectionProfile ? "" : tool.endpoint ?? "",
+    targetMode: usesConnectionProfile ? "profile" : "endpoint",
+    connectionProfile: tool.connectionProfile ?? "",
+    path: tool.path ?? "/",
+    authScope: tool.authScope,
+    connectionCredentialId: tool.connectionCredentialId ?? "",
+    allowedUserIds: (tool.allowedUserIds ?? []).join(", "),
     parameters: tool.parameters.map((parameter, index) => ({
       ...parameter,
       id: `${index}-${parameter.name}`,
@@ -150,8 +173,10 @@ function draftForTool(tool: CustomTool): Draft {
     rawOutputSchema: !isDefaultOutput,
     timeoutMs: String(tool.timeoutMs),
     maxResponseBytes: String(tool.maxResponseBytes),
-    authMode: tool.authSecretConfigured ? "unresolved" : "none",
-    authPrefix: "Bearer ",
+    authMode: tool.connectionCredentialId
+      ? "none"
+      : tool.authHeaderName ?? (tool.authSecretConfigured ? "unresolved" : "none"),
+    authPrefix: tool.authPrefix ?? "Bearer ",
     authSecret: "",
   };
 }
@@ -222,14 +247,6 @@ function validateSchemaContract(
         !Object.values(properties).every((child) => check(child, depth + 1))
       )
         return false;
-      if (
-        item.required !== undefined &&
-        (!Array.isArray(item.required) ||
-          !item.required.every(
-            (key) => typeof key === "string" && Object.hasOwn(properties, key),
-          ))
-      )
-        return false;
     } else if (item.type === "array") {
       if (!check(item.items, depth + 1)) return false;
     } else if (
@@ -268,8 +285,6 @@ function schemaFromParameters(parameters: SchemaParameter[]) {
   for (const parameter of parameters) {
     const name = parameter.name.trim();
     const queryParameter = parameter.queryParameter.trim() || name;
-    if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name))
-      throw new Error("Parameter names must start with a letter and use only letters, numbers, and underscores.");
     if (Object.hasOwn(properties, name))
       throw new Error(`Parameter name “${name}” is used more than once.`);
     if (!/^[A-Za-z0-9_.~-]{1,80}$/.test(queryParameter))
@@ -397,6 +412,22 @@ export function CustomTools() {
     enabled: !!auth.session && account.isSuccess && !readOnly,
     retry: 0,
   });
+  const profiles = useQuery({
+    queryKey: ["custom-tool-profiles"],
+    queryFn: ({ signal }) => api.customToolConnections(signal),
+    enabled: !!auth.session && account.isSuccess && !readOnly,
+    retry: 0,
+  });
+  const sharedCredentials = useQuery({
+    queryKey: ["custom-tool-credentials", draft.connectionProfile],
+    queryFn: ({ signal }) =>
+      api.customToolConnectionCredentials(draft.connectionProfile, signal),
+    enabled:
+      !!draft.connectionProfile &&
+      draft.authScope === "SHARED" &&
+      profiles.isSuccess,
+    retry: 0,
+  });
   const selectedId = panel && "toolId" in panel ? panel.toolId : "";
   const selectedFromList = tools.data?.find((tool) => tool.id === selectedId);
   const detail = useQuery({
@@ -418,12 +449,14 @@ export function CustomTools() {
       ? "Your account is read-only. Only the configured installation owner can manage custom tools."
       : "") ||
     ownerMessage(account.error) ||
-    ownerMessage(tools.error);
+    ownerMessage(tools.error) ||
+    ownerMessage(profiles.error);
   const canManage =
     !!auth.session &&
     account.isSuccess &&
     !readOnly &&
     tools.isSuccess &&
+    profiles.isSuccess &&
     !accessIssue;
   const toolRows = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -452,6 +485,7 @@ export function CustomTools() {
   async function refreshTools() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["custom-tools"] }),
+      queryClient.invalidateQueries({ queryKey: ["custom-tool-profiles"] }),
       queryClient.invalidateQueries({ queryKey: ["custom-tool"] }),
       queryClient.invalidateQueries({ queryKey: ["custom-tool-executions"] }),
     ]);
@@ -477,9 +511,9 @@ export function CustomTools() {
       );
       setReviewPayload(null);
       if (variables.id) {
+        setDraft(draftForTool(tool));
         setTestResult(null);
         setTestResultToolId("");
-        setPanel(null);
       }
       else {
         setJustCreatedToolId(tool.id);
@@ -491,8 +525,8 @@ export function CustomTools() {
     },
     onError: (error, variables) => {
       handleError(error);
+      setFormError(errorMessage(error));
       if (!variables.id) {
-        setFormError(errorMessage(error));
         setCreationStep("configure");
         setReviewPayload(null);
       }
@@ -589,12 +623,28 @@ export function CustomTools() {
       ) {
         throw new Error("Enter a tool name and an AI-facing description.");
       }
-      const endpoint = validateEndpoint(draft.endpoint.trim());
+      const endpoint = draft.targetMode === "endpoint"
+        ? validateEndpoint(draft.endpoint.trim())
+        : undefined;
+      if (draft.targetMode === "profile") {
+        if (!profiles.data?.some((profile) => profile.id === draft.connectionProfile && profile.enabled))
+          throw new Error("Choose an enabled connection profile.");
+        if (!draft.path.startsWith("/") || draft.path.startsWith("//") || /[?#\\\u0000-\u001f]/.test(draft.path))
+          throw new Error("Enter a fixed relative path beginning with one slash.");
+      }
+      if (draft.authScope === "PER_USER") {
+        const selectedProfile = profiles.data?.find((profile) => profile.id === draft.connectionProfile);
+        if (draft.targetMode !== "profile" || !selectedProfile?.authenticationCapabilities?.atomicPerUserLogin && !selectedProfile?.authenticationCapabilities?.oauth2Refresh)
+          throw new Error("Choose a profile approved for per-user authentication.");
+      }
       let parameters: CustomToolPayload["parameters"];
       let rawInputSchema: Record<string, unknown> | undefined;
       let rawQueryMappings: Record<string, string> | undefined;
       if (draft.rawInputSchema) {
-        rawInputSchema = parseJsonSchema(draft.inputSchema, "Input schema");
+        const parsedSchema = parseObject(draft.inputSchema, "Input schema");
+        rawInputSchema = parsedSchema;
+        if (panel?.kind !== "edit")
+          validateSchemaContract(rawInputSchema, "Input schema");
         const inputProperties = rawInputSchema.properties as Record<
           string,
           unknown
@@ -646,12 +696,13 @@ export function CustomTools() {
         throw new Error(
           "Response limit must be a whole number between 256 and 1,000,000 bytes.",
         );
-      if (draft.authMode === "unresolved")
+      const usesStaticAuth = draft.authScope === "SHARED" && !draft.connectionCredentialId && draft.authMode !== "none";
+      if (draft.authMode === "unresolved" && usesStaticAuth)
         throw new Error(
           "Choose No Authentication or select a header and enter a replacement credential. The saved header is not returned by the backend.",
         );
-      if (draft.authMode !== "none") {
-        if (draft.authSecret.length < 8 || draft.authSecret.length > 2000)
+      if (usesStaticAuth) {
+        if ((!draft.authSecret && !selectedFromList?.authSecretConfigured) || (draft.authSecret && draft.authSecret.length < 8) || draft.authSecret.length > 2000)
           throw new Error("Credentials must contain 8 to 2,000 characters.");
         if (/[\u0000-\u001f\u007f]/.test(draft.authSecret))
           throw new Error("Credential values cannot contain control characters.");
@@ -660,11 +711,17 @@ export function CustomTools() {
             "Authentication prefix must be at most 30 characters and cannot contain a line break.",
           );
       }
+      const allowedUserIds = draft.allowedUserIds.split(",").map((id) => id.trim()).filter(Boolean);
+      if (draft.connectionCredentialId && (!allowedUserIds.length || allowedUserIds.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))))
+        throw new Error("Enter one or more valid user UUIDs for the shared credential allowlist.");
       const payload: CustomToolPayload = {
         name: draft.name,
         displayName: draft.displayName.trim(),
         description: draft.description.trim(),
-        endpoint,
+        authScope: draft.authScope,
+        ...(draft.targetMode === "endpoint"
+          ? { endpoint }
+          : { connectionProfile: draft.connectionProfile, path: draft.path }),
         ...(draft.rawInputSchema
           ? {
               inputSchema: rawInputSchema,
@@ -672,14 +729,20 @@ export function CustomTools() {
             }
           : { parameters }),
         ...(outputSchema ? { outputSchema } : {}),
-        ...(draft.authMode !== "none"
+        ...(draft.connectionCredentialId
+          ? {
+              connectionCredentialId: draft.connectionCredentialId,
+              allowedUserIds,
+            }
+          : {}),
+        ...(usesStaticAuth
           ? {
               auth: {
                 headerName: draft.authMode as
                   | "Authorization"
                   | "X-API-Key",
                 ...(draft.authPrefix ? { prefix: draft.authPrefix } : {}),
-                secret: draft.authSecret,
+                ...(draft.authSecret ? { secret: draft.authSecret } : {}),
               },
             }
           : {}),
@@ -741,8 +804,11 @@ export function CustomTools() {
     setPermissionOverride("");
     const accountResult = await account.refetch();
     if (accountResult.data?.role === "READ_ONLY") return;
-    const result = await tools.refetch();
-    const issue = ownerMessage(result.error);
+    const [result, profileResult] = await Promise.all([
+      tools.refetch(),
+      profiles.refetch(),
+    ]);
+    const issue = ownerMessage(result.error) || ownerMessage(profileResult.error);
     setPermissionOverride(issue ?? "");
   }
 
@@ -750,7 +816,8 @@ export function CustomTools() {
   const detailLoading = panel?.kind === "detail" && detail.isPending;
   const queryPermissionIssue =
     ownerMessage(account.error) ||
-    ownerMessage(tools.error);
+    ownerMessage(tools.error) ||
+    ownerMessage(profiles.error);
 
   return (
     <main className="custom-tools-page">
@@ -776,7 +843,7 @@ export function CustomTools() {
           <span>Sign in to view custom tools.</span>
         </div>
       ) : account.isLoading ||
-        (!readOnly && tools.isLoading) ? (
+        (!readOnly && (tools.isLoading || profiles.isLoading)) ? (
         <div
           className="custom-tools-skeleton"
           aria-label="Loading custom tools"
@@ -803,11 +870,11 @@ export function CustomTools() {
             <RefreshCw size={14} /> Retry
           </button>
         </div>
-      ) : account.isError || tools.isError ? (
+      ) : account.isError || tools.isError || profiles.isError ? (
         <div className="custom-tools-error" role="alert">
           <AlertCircle size={18} />
           <span>
-            {errorMessage(account.error ?? tools.error)}
+            {errorMessage(account.error ?? tools.error ?? profiles.error)}
           </span>
           <button
             className="button secondary"
@@ -1027,6 +1094,8 @@ export function CustomTools() {
               <ToolForm
                 draft={draft}
                 setDraft={setDraft}
+                profiles={profiles.data ?? []}
+                credentials={sharedCredentials.data ?? []}
                 existing={panel.kind === "edit" ? selectedFromList : undefined}
                 error={formError}
                 busy={saveTool.isPending}
@@ -1351,6 +1420,8 @@ export function CustomTools() {
 function ToolForm({
   draft,
   setDraft,
+  profiles,
+  credentials,
   existing,
   error,
   busy,
@@ -1359,6 +1430,8 @@ function ToolForm({
 }: {
   draft: Draft;
   setDraft: Dispatch<SetStateAction<Draft>>;
+  profiles: CustomToolConnection[];
+  credentials: ConnectionCredential[];
   existing?: CustomTool;
   error: string;
   busy: boolean;
@@ -1419,11 +1492,12 @@ function ToolForm({
     update("rawOutputSchema", raw);
   }
   return (
-    <form className="custom-tool-form" onSubmit={onSubmit}>
+    <form className="custom-tool-form" onSubmit={onSubmit} noValidate>
       {!edit && <CreationSteps active={1} />}
       <p className="custom-tool-form-intro">
         Create a secure, read-only HTTPS integration. New tools start disabled.
       </p>
+      {error && <p className="custom-tool-form-error" role="alert"><AlertCircle size={14} />{error}</p>}
       <div className="custom-tool-form-section">
         <h3>Tool details</h3>
         <label>
@@ -1475,16 +1549,29 @@ function ToolForm({
           <small>Explain when the Agent should call this tool, for example: “Use this when the user asks for the current weather in a city.”</small>
         </label>
         <label>
+          Connection target
+          <select value={draft.targetMode} onChange={(event) => update("targetMode", event.target.value as Draft["targetMode"])}>
+            <option value="endpoint">Full HTTPS endpoint</option>
+            <option value="profile">Connection Profile</option>
+          </select>
+        </label>
+        {draft.targetMode === "endpoint" ? <label>
           Full HTTPS API endpoint
-          <input
-            required
-            maxLength={2000}
-            type="url"
-            value={draft.endpoint}
-            onChange={(event) => update("endpoint", event.target.value)}
-            placeholder="https://api.example.com/weather"
-          />
+          <input required maxLength={2000} type="url" value={draft.endpoint} onChange={(event) => update("endpoint", event.target.value)} placeholder="https://api.example.com/weather" />
           <small>GET only. Do not include query parameters; add them in the parameter mappings below. The backend checks DNS and public-address safety.</small>
+        </label> : <>
+          <label>Connection Profile<select required value={draft.connectionProfile} onChange={(event) => { update("connectionProfile", event.target.value); update("connectionCredentialId", ""); }}>
+            <option value="">Choose an enabled profile</option>
+            {profiles.filter((profile) => profile.enabled).map((profile) => <option key={profile.id} value={profile.id}>{profile.displayName ?? profile.id} ({profile.host})</option>)}
+          </select></label>
+          <label>Fixed path<input required value={draft.path} onChange={(event) => update("path", event.target.value)} placeholder="/v1/weather" /><small>The server-approved profile supplies the host. Enter only a fixed path.</small></label>
+        </>}
+        <label>
+          Method
+          <select value="GET" disabled aria-describedby="custom-tool-method-help">
+            <option value="GET">GET</option>
+          </select>
+          <small id="custom-tool-method-help">Custom tools currently support read-only GET requests.</small>
         </label>
       </div>
       {edit && !existing.endpoint && (
@@ -1492,22 +1579,52 @@ function ToolForm({
           This is a legacy profile-based tool. To edit it in the new flow, enter a full HTTPS endpoint.
         </p>
       )}
-      <SchemaParameterEditor
-        title="Parameters"
-        help="The backend generates the input schema and query mapping from these fields."
-        value={draft.parameters}
-        onChange={updateParameters}
-        disabled={draft.rawInputSchema}
-      />
       <div className="custom-tool-form-section">
-        <h3>Authentication <span className="custom-tool-optional">Optional</span></h3>
+        <h3>Parameters</h3>
+        <label>
+          Parameter format
+          <select value={draft.rawInputSchema ? "json" : "fields"} onChange={(event) => setRawInput(event.target.value === "json")}>
+            <option value="fields">Add fields</option>
+            <option value="json">JSON schema</option>
+          </select>
+        </label>
+        {!draft.rawInputSchema && (
+          <SchemaParameterEditor
+            title="Input parameters"
+            help="The backend builds the input schema and query mapping from these fields."
+            value={draft.parameters}
+            onChange={updateParameters}
+          />
+        )}
+        {draft.rawInputSchema && (
+          <>
+            <JsonEditor id="input-schema" label="Input JSON Schema" value={draft.inputSchema} onChange={(value) => update("inputSchema", value)} />
+            <label>
+              Query mappings
+              <textarea className="custom-tool-code-editor compact" rows={4} spellCheck={false} value={draft.queryMappings} onChange={(event) => update("queryMappings", event.target.value)} />
+              <small>Map API query parameter names to top-level input properties.</small>
+            </label>
+          </>
+        )}
+      </div>
+      <div className="custom-tool-form-section">
+        <h3>Authentication</h3>
+        <label>Authentication scope<select value={draft.authScope} onChange={(event) => {
+          const authScope = event.target.value as Draft["authScope"];
+          setDraft((current) => ({ ...current, authScope, connectionCredentialId: authScope === "SHARED" ? current.connectionCredentialId : "", authMode: authScope === "SHARED" ? current.authMode : "none", authSecret: authScope === "SHARED" ? current.authSecret : "" }));
+        }}>
+          <option value="NONE">NONE</option><option value="SHARED">SHARED</option><option value="PER_USER">PER_USER</option>
+        </select></label>
+        {draft.authScope === "PER_USER" && <p>Each user must connect their own approved profile. Available for: {profiles.find((profile) => profile.id === draft.connectionProfile)?.authenticationCapabilities?.atomicPerUserLogin ? "Atomic email and password" : profiles.find((profile) => profile.id === draft.connectionProfile)?.authenticationCapabilities?.oauth2Refresh ? "OAuth2 refresh" : "Select a profile with a supported per-user capability"}.</p>}
+        {draft.authScope === "SHARED" && draft.targetMode === "profile" && <label>Shared credential<select value={draft.connectionCredentialId} onChange={(event) => update("connectionCredentialId", event.target.value)}><option value="">No shared credential (use a static header below)</option>{credentials.map((credential) => <option key={credential.id} value={credential.id}>{credential.name} · {credential.authStatus}</option>)}</select><small>Shared credentials are limited to the tool's selected users.</small></label>}
+        {draft.connectionCredentialId && <label>Allowed user UUIDs (comma separated)<input required value={draft.allowedUserIds} onChange={(event) => update("allowedUserIds", event.target.value)} placeholder="user UUID, user UUID" /></label>}
         {existing?.authSecretConfigured && (
           <p className="custom-tool-auth-warning">
             <LockKeyhole size={14} />
             A credential is saved, but the API does not return its header type. Choose No Authentication to remove it, or select a header and enter a replacement credential.
           </p>
         )}
-        <label>
+        {draft.authScope === "SHARED" && !draft.connectionCredentialId && <label>
           Authentication method
           <select
             required
@@ -1529,8 +1646,8 @@ function ToolForm({
             <option value="Authorization">Authorization Header</option>
             <option value="X-API-Key">X-API-Key</option>
           </select>
-        </label>
-        {(draft.authMode === "Authorization" || draft.authMode === "X-API-Key") && (
+        </label>}
+        {draft.authScope === "SHARED" && !draft.connectionCredentialId && (draft.authMode === "Authorization" || draft.authMode === "X-API-Key") && (
           <div className="custom-tool-auth-fields">
             {draft.authMode === "Authorization" && (
               <label>
@@ -1540,7 +1657,7 @@ function ToolForm({
             )}
             <label className="custom-tool-secret-field">
               {existing?.authSecretConfigured ? "Replacement credential" : "Credential"}
-              <input type="password" required minLength={8} maxLength={2000} autoComplete="new-password" value={draft.authSecret} onChange={(event) => update("authSecret", event.target.value)} placeholder="Enter credential" />
+              <input type="password" required={!existing?.authSecretConfigured} minLength={existing?.authSecretConfigured ? 0 : 8} maxLength={2000} autoComplete="new-password" value={draft.authSecret} onChange={(event) => update("authSecret", event.target.value)} placeholder={existing?.authSecretConfigured ? "Leave blank to keep saved credential" : "Enter credential"} />
               <small>Sent to the backend and encrypted there. Never shown or stored in browser storage.</small>
             </label>
           </div>
@@ -1552,20 +1669,6 @@ function ToolForm({
           <div className="custom-tool-form-section">
             <h3>Raw schemas</h3>
             <p className="custom-tool-muted">The input schema supports the backend’s restricted JSON Schema keywords. Output schema is optional; leaving it unset allows any bounded JSON object.</p>
-            <label className="custom-tool-checkbox">
-              <input type="checkbox" checked={draft.rawInputSchema} onChange={(event) => setRawInput(event.target.checked)} />
-              <span>Edit raw input schema and query mappings</span>
-            </label>
-            {draft.rawInputSchema && (
-              <>
-                <JsonEditor id="input-schema" label="Input JSON Schema" value={draft.inputSchema} onChange={(value) => update("inputSchema", value)} />
-                <label>
-                  Query mappings
-                  <textarea className="custom-tool-code-editor compact" rows={4} spellCheck={false} value={draft.queryMappings} onChange={(event) => update("queryMappings", event.target.value)} />
-                  <small>Map API query parameter names to top-level input properties.</small>
-                </label>
-              </>
-            )}
             <label className="custom-tool-checkbox">
               <input type="checkbox" checked={draft.rawOutputSchema} onChange={(event) => setRawOutput(event.target.checked)} />
               <span>Set an explicit output schema</span>
@@ -1583,7 +1686,6 @@ function ToolForm({
           </div>
         </div>
       </details>
-      {error && <p className="custom-tool-form-error" role="alert"><AlertCircle size={14} />{error}</p>}
       <div className="custom-tool-form-footer">
         <button type="button" className="button secondary" onClick={onCancel} disabled={busy}>Cancel</button>
         <button type="submit" className="button primary" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={15} /> Saving…</> : edit ? <><Check size={15} /> Save changes</> : <>Review configuration <ArrowRight size={15} /></>}</button>

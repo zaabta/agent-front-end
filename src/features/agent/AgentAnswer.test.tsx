@@ -42,4 +42,31 @@ describe("Agent answer Markdown and direction", () => {
       "The total number of records is 25.",
     );
   });
+
+  it("removes inline file reference markup from answer text", () => {
+    expect(
+      readableAgentText(
+        "Found the answer. [[concrete-structure1.pdf (page 1)]]",
+      ),
+    ).toBe("Found the answer.");
+    expect(readableAgentText("Keep [[ordinary text]] visible.")).toBe(
+      "Keep [[ordinary text]] visible.",
+    );
+  });
+
+  it("renders each claim citation as a link to its verified source card", () => {
+    render(
+      <>
+        <AgentAnswer
+          content={"The first fact.\n\nThe second fact."}
+          evidenceReferences={[{ claimIndex: 1, citationIds: ["C2"] }]}
+        />
+        <div id="citation-C2" />
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "Open source 1" })).toHaveAttribute(
+      "href",
+      "#citation-C2",
+    );
+  });
 });

@@ -71,6 +71,91 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("SitePilot backend API contract", () => {
+  it("reads safe owner-only credential encryption readiness", async () => {
+    let url = "";
+    http.defaults.adapter = async (config) => {
+      url = String(config.url);
+      return { data: { available: false }, status: 200, statusText: "OK", headers: {}, config };
+    };
+    expect(await api.customToolCredentialEncryptionStatus()).toEqual({ available: false });
+    expect(url).toBe("/api/agent/custom-tools/connections/encryption-status");
+  });
+  it("uses documented profile and per-user Atomic connection routes", async () => {
+    const requests: Array<{ method: string; url: string; body?: unknown }> = [];
+    const profile = {
+      id: "atomic_main",
+      displayName: "Atomic",
+      baseUrl: "https://atomic.example.com/",
+      allowLocalHttp: false,
+      tokenUrl: null,
+      clientId: null,
+      host: "atomic.example.com",
+      trustedInternal: false,
+      authStrategy: "ATOMIC_COOKIE_REFRESH",
+      enabled: true,
+      authenticationCapabilities: {
+        atomicPerUserLogin: true,
+        oauth2Refresh: false,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    const status = {
+      connected: true,
+      authStatus: "ACTIVE",
+      tokenExpiresAt: now,
+      lastRefreshedAt: now,
+    };
+    http.defaults.adapter = async (config) => {
+      requests.push({
+        method: String(config.method).toUpperCase(),
+        url: String(config.url),
+        body: config.data ? JSON.parse(String(config.data)) : undefined,
+      });
+      return {
+        data: String(config.url).endsWith("/connect/atomic")
+          ? status
+          : String(config.url).endsWith("/connections/available")
+            ? [{ id: profile.id, displayName: profile.displayName, authenticationCapabilities: profile.authenticationCapabilities }]
+            : profile,
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      };
+    };
+    await api.createCustomToolConnection({
+      id: profile.id,
+      displayName: profile.displayName,
+      baseUrl: profile.baseUrl,
+      allowLocalHttp: false,
+      authStrategy: "ATOMIC_COOKIE_REFRESH",
+    });
+    expect(await api.availableUserConnections()).toHaveLength(1);
+    await api.connectAtomic(profile.id, "user@example.com", "one-time-password");
+    expect(requests).toEqual([
+      {
+        method: "POST",
+        url: "/api/agent/custom-tools/connections",
+        body: {
+          id: profile.id,
+          displayName: profile.displayName,
+          baseUrl: profile.baseUrl,
+          allowLocalHttp: false,
+          authStrategy: "ATOMIC_COOKIE_REFRESH",
+        },
+      },
+      {
+        method: "GET",
+        url: "/api/agent/custom-tools/connections/available",
+      },
+      {
+        method: "POST",
+        url: `/api/agent/custom-tools/connections/${profile.id}/connect/atomic`,
+        body: { email: "user@example.com", password: "one-time-password" },
+      },
+    ]);
+  });
   it("sends documented conversation cursors and document list filters", async () => {
     const requests: Array<{ url: string; params: unknown }> = [];
     http.defaults.adapter = async (config) => {
@@ -717,6 +802,46 @@ describe("SitePilot backend API contract", () => {
       role: "assistant",
     });
   });
+  it("restores verified citation file and location metadata from saved evidence references", async () => {
+    http.defaults.adapter = async (config) => ({
+      data: {
+        id,
+        createdAt: now,
+        messages: [{
+          id: "m1",
+          role: "assistant",
+          content: "VCFO AI pricing is in the commercial plan.",
+          createdAt: now,
+          evidenceReferences: [{
+            claimIndex: 0,
+            evidenceIds: ["E1"],
+            citationIds: ["C1"],
+            sources: [{
+              citationId: "C1",
+              documentId: "doc-1",
+              filename: "07-pricing-plans-and-commercial.md",
+              sourceRef: "Pricing section, paragraph 4",
+              chunkIndex: 3,
+              location: "Paragraph 4",
+            }],
+          }],
+        }],
+      },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config,
+    });
+    const result = await api.conversation(id);
+    expect(result.messages?.[0].citations).toMatchObject([{
+      citationId: "C1",
+      source: "07-pricing-plans-and-commercial.md",
+      documentId: "doc-1",
+      location: "Paragraph 4",
+    }]);
+    expect(result.messages?.[0].evidenceReferences?.[0].sources[0]?.filename)
+      .toBe("07-pricing-plans-and-commercial.md");
+  });
   it("loads recent conversations from the backend and preserves in-progress last-message state", async () => {
     let url = "";
     http.defaults.adapter = async (config) => {
@@ -948,11 +1073,15 @@ describe("SitePilot backend API contract", () => {
       answer: "Verified response",
       sources: [
         {
+          citationId: "C1",
           documentId: id,
           filename: "evidence.md",
           sourceRef: "s1",
           chunkIndex: 0,
         },
+      ],
+      evidenceReferences: [
+        { claimIndex: 0, evidenceIds: ["E1"], citationIds: ["C1"], sources: [] },
       ],
       toolsCalled: ["search"],
       citationValidation: "valid",
@@ -983,6 +1112,8 @@ describe("SitePilot backend API contract", () => {
     expect(deltas).toEqual(["draft"]);
     expect(result.content).toBe("Verified response");
     expect(result.citations[0]?.source).toBe("evidence.md");
+    expect(result.citations[0]?.citationId).toBe("C1");
+    expect(result.evidenceReferences[0]?.citationIds).toEqual(["C1"]);
   });
   it("parses SSE frames split across network chunks and forwards source and final state events", async () => {
     const final = {

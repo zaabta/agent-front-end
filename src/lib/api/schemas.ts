@@ -87,6 +87,11 @@ export const customToolSchema = z.object({
   endpoint: z.string().nullable(),
   parameters: z.array(customToolParameterSchema),
   connectionProfile: z.string().optional(),
+  authScope: z.enum(["NONE", "SHARED", "PER_USER"]).default("NONE"),
+  connectionCredentialId: z.string().nullable().optional(),
+  allowedUserIds: z.array(z.string()).optional(),
+  authHeaderName: z.enum(["Authorization", "X-API-Key"]).nullable().optional(),
+  authPrefix: z.string().nullable().optional(),
   path: z.string().optional(),
   queryMappings: z.record(z.string(), z.string()),
   inputSchema: z.record(z.string(), z.unknown()),
@@ -107,25 +112,76 @@ export const customToolPayloadSchema = z.object({
   name: z.string(),
   displayName: z.string().optional(),
   description: z.string(),
-  endpoint: z.string(),
+  endpoint: z.string().optional(),
+  connectionProfile: z.string().optional(),
+  path: z.string().optional(),
+  authScope: z.enum(["NONE", "SHARED", "PER_USER"]).optional(),
+  connectionCredentialId: z.string().nullable().optional(),
+  allowedUserIds: z.array(z.string()).optional(),
+  auth: z.object({
+    headerName: z.enum(["Authorization", "X-API-Key"]),
+    prefix: z.string().optional(),
+    secret: z.string().optional(),
+  }).nullable().optional(),
   parameters: z.array(customToolParameterPayloadSchema).optional(),
   queryMappings: z.record(z.string(), z.string()).optional(),
   inputSchema: z.record(z.string(), z.unknown()).optional(),
   outputSchema: z.record(z.string(), z.unknown()).optional(),
-  auth: z
-    .object({
-      headerName: z.enum(["Authorization", "X-API-Key"]),
-      prefix: z.string().optional(),
-      secret: z.string().optional(),
-    })
-    .optional(),
   timeoutMs: z.number().optional(),
   maxResponseBytes: z.number().optional(),
 });
 export const customToolConnectionSchema = z.object({
   id: z.string(),
+  displayName: z.string(),
+  baseUrl: z.string(),
+  allowLocalHttp: z.boolean(),
+  tokenUrl: z.string().nullable(),
+  clientId: z.string().nullable(),
   host: z.string(),
   trustedInternal: z.boolean(),
+  authStrategy: z.enum(["NONE", "SHARED", "ATOMIC_COOKIE_REFRESH", "OAUTH2_REFRESH"]),
+  enabled: z.boolean(),
+  authenticationCapabilities: z.object({
+    atomicPerUserLogin: z.boolean(),
+    oauth2Refresh: z.boolean(),
+  }),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export const connectionProfilePayloadSchema = z.object({
+  id: z.string().optional(),
+  displayName: z.string(),
+  baseUrl: z.string(),
+  allowLocalHttp: z.boolean().optional(),
+  authStrategy: z.enum(["NONE", "SHARED", "ATOMIC_COOKIE_REFRESH", "OAUTH2_REFRESH"]).optional(),
+  tokenUrl: z.string().optional(),
+  clientId: z.string().optional(),
+  enabled: z.boolean().optional(),
+});
+export const credentialEncryptionStatusSchema = z.object({ available: z.boolean() });
+export const availableUserConnectionSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  authenticationCapabilities: z.object({
+    atomicPerUserLogin: z.boolean(),
+    oauth2Refresh: z.boolean(),
+  }),
+});
+export const connectionCredentialSchema = z.object({
+  id: z.string(),
+  profileId: z.string(),
+  name: z.string(),
+  authStrategy: z.string(),
+  tokenExpiresAt: z.string(),
+  lastRefreshedAt: z.string().nullable(),
+  credentialVersion: z.number(),
+  authStatus: z.string(),
+});
+export const userConnectionStatusSchema = z.object({
+  connected: z.boolean(),
+  authStatus: z.string(),
+  tokenExpiresAt: z.string().nullable(),
+  lastRefreshedAt: z.string().nullable(),
 });
 export const customToolTestResultSchema = z.object({
   success: z.boolean(),
@@ -402,15 +458,36 @@ export const searchResponseSchema = z.object({
   }),
 });
 export const verifiedSourceSchema = z.object({
+  citationId: z.string().optional(),
   documentId: z.string(),
   filename: z.string(),
   sourceRef: z.string(),
   chunkIndex: z.number(),
   documentVersionId: z.string().optional(),
+  chunkId: z.string().optional(),
+  pageNumber: z.number().optional(),
+  location: z.string().optional(),
+  headingPath: z.array(z.string()).optional(),
+  paragraphStart: z.number().optional(),
+  paragraphEnd: z.number().optional(),
+  sheetName: z.string().optional(),
+  rowStart: z.number().optional(),
+  rowEnd: z.number().optional(),
+  rowNumbers: z.array(z.number()).optional(),
+  cellRange: z.string().optional(),
+  cellRefs: z.array(z.string()).optional(),
+  matchedCell: z.string().optional(),
+});
+export const evidenceReferenceSchema = z.object({
+  claimIndex: z.number().int().nonnegative(),
+  evidenceIds: z.array(z.string()),
+  citationIds: z.array(z.string()),
+  sources: z.array(verifiedSourceSchema),
 });
 export const agentAnswerSchema = z.object({
   answer: z.string(),
   sources: z.array(verifiedSourceSchema),
+  evidenceReferences: z.array(evidenceReferenceSchema).default([]),
   toolsCalled: z.array(z.string()),
   citationValidation: z.enum(["valid", "no-evidence", "fallback"]),
   conversationId: z.string(),
@@ -486,14 +563,22 @@ export const agentMessageSchema = z.object({
     .array(
       z.object({
         source: z.string(),
+        citationId: z.string().optional(),
         documentId: z.string().optional(),
         documentVersionId: z.string().optional(),
         sourceRef: z.string().optional(),
         chunkIndex: z.number().optional(),
+        pageNumber: z.number().optional(),
         location: z.string().nullable().optional(),
+        headingPath: z.array(z.string()).optional(),
         sheet: z.string().nullable().optional(),
+        sheetName: z.string().nullable().optional(),
         rowStart: z.number().nullable().optional(),
         rowEnd: z.number().nullable().optional(),
+        rowNumbers: z.array(z.number()).optional(),
+        cellRange: z.string().nullable().optional(),
+        cellRefs: z.array(z.string()).optional(),
+        matchedCell: z.string().nullable().optional(),
         sourceRange: z.string().nullable().optional(),
         section: z.string().nullable().optional(),
         lineStart: z.number().nullable().optional(),
@@ -503,6 +588,7 @@ export const agentMessageSchema = z.object({
       }),
     )
     .default([]),
+  evidenceReferences: z.array(evidenceReferenceSchema).default([]),
   provider: z.string().nullable().optional(),
   model: z.string().nullable().optional(),
   createdAt: z.string(),
