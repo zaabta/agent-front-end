@@ -388,6 +388,7 @@ export function CustomTools() {
   );
   const [justCreatedToolId, setJustCreatedToolId] = useState("");
   const [formError, setFormError] = useState("");
+  const [formNotice, setFormNotice] = useState("");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -473,6 +474,7 @@ export function CustomTools() {
     setPanel(null);
     setDraft((current) => ({ ...current, authSecret: "" }));
     setFormError("");
+    setFormNotice("");
     setReviewPayload(null);
   }
 
@@ -504,11 +506,8 @@ export function CustomTools() {
       setDraft((current) => ({ ...current, authSecret: "" }));
       setFormError("");
       setActionError("");
-      setNotice(
-        variables.id
-          ? "Custom tool updated."
-          : "Custom tool created. Test it before enabling it.",
-      );
+      if (variables.id) setFormNotice("Changes saved successfully.");
+      else setNotice("Custom tool created. Test it before enabling it.");
       setReviewPayload(null);
       if (variables.id) {
         setDraft(draftForTool(tool));
@@ -524,7 +523,10 @@ export function CustomTools() {
       await refreshTools();
     },
     onError: (error, variables) => {
-      handleError(error);
+      if (variables.id) {
+        const issue = ownerMessage(error);
+        if (issue) setPermissionOverride(issue);
+      } else handleError(error);
       setFormError(errorMessage(error));
       if (!variables.id) {
         setCreationStep("configure");
@@ -600,6 +602,7 @@ export function CustomTools() {
   function openEdit(tool: CustomTool) {
     setDraft(draftForTool(tool));
     setFormError("");
+    setFormNotice("");
     setReviewPayload(null);
     setTestResult(null);
     setTestResultToolId("");
@@ -609,6 +612,7 @@ export function CustomTools() {
   function submitTool(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError("");
+    setFormNotice("");
     try {
       if (!/^[a-z][a-z0-9_-]{0,63}$/.test(draft.name)) {
         throw new Error(
@@ -1098,6 +1102,7 @@ export function CustomTools() {
                 credentials={sharedCredentials.data ?? []}
                 existing={panel.kind === "edit" ? selectedFromList : undefined}
                 error={formError}
+                successMessage={panel.kind === "edit" ? formNotice : ""}
                 busy={saveTool.isPending}
                 onSubmit={submitTool}
                 onCancel={closePanel}
@@ -1424,6 +1429,7 @@ function ToolForm({
   credentials,
   existing,
   error,
+  successMessage,
   busy,
   onSubmit,
   onCancel,
@@ -1434,6 +1440,7 @@ function ToolForm({
   credentials: ConnectionCredential[];
   existing?: CustomTool;
   error: string;
+  successMessage: string;
   busy: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
@@ -1497,7 +1504,6 @@ function ToolForm({
       <p className="custom-tool-form-intro">
         Create a secure, read-only HTTPS integration. New tools start disabled.
       </p>
-      {error && <p className="custom-tool-form-error" role="alert"><AlertCircle size={14} />{error}</p>}
       <div className="custom-tool-form-section">
         <h3>Tool details</h3>
         <label>
@@ -1687,8 +1693,14 @@ function ToolForm({
         </div>
       </details>
       <div className="custom-tool-form-footer">
-        <button type="button" className="button secondary" onClick={onCancel} disabled={busy}>Cancel</button>
-        <button type="submit" className="button primary" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={15} /> Saving…</> : edit ? <><Check size={15} /> Save changes</> : <>Review configuration <ArrowRight size={15} /></>}</button>
+        {(error || successMessage) && <p className={`custom-tool-form-feedback ${error ? "error" : "success"}`} role={error ? "alert" : "status"}>
+          {error ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
+          <span>{error || successMessage}</span>
+        </p>}
+        <div className="custom-tool-form-actions">
+          <button type="button" className="button secondary" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="submit" className="button primary" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={15} /> Saving…</> : edit ? <><Check size={15} /> Save changes</> : <>Review configuration <ArrowRight size={15} /></>}</button>
+        </div>
       </div>
     </form>
   );

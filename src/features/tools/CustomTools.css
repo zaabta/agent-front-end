@@ -606,12 +606,41 @@
   position: sticky;
   bottom: -26px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin: 0 -22px -26px;
   padding: 12px 22px;
   border-top: 1px solid var(--border);
   background: var(--surface);
+}
+.custom-tool-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+.custom-tool-form-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  max-height: 88px;
+  overflow: auto;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.custom-tool-form-feedback svg {
+  flex: none;
+  margin-top: 1px;
+}
+.custom-tool-form-feedback.error {
+  color: var(--destructive, #b43b36);
+}
+.custom-tool-form-feedback.success {
+  color: var(--success, #247a52);
 }
 .custom-tool-form-footer .button,
 .custom-tool-test > .button {
